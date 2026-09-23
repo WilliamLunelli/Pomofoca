@@ -404,6 +404,20 @@ usa o componente decide o que cada botão faz:
 ELE que está carregando, já que mensal e anual convivem na mesma tela e podem ser
 clicados independentemente. Preço/features ficam em `src/lib/plans.ts`.
 
+**`src/pages/SubscriptionCallbackPage.tsx`** (`/subscription/callback`, é pra onde
+`MERCADO_PAGO_BACK_URL` aponta) — regra de segurança inegociável: **nunca concede
+Premium com base em query params da URL** (são forjáveis pelo navegador do
+usuário). A única fonte de verdade é `GET /users/me` — a página faz polling nesse
+endpoint (a cada 2s, até 6 tentativas ≈ 12s) esperando `user.plan === 'PREMIUM'`,
+que só muda quando o webhook assinado do Mercado Pago confirma o pagamento no
+backend. Se o polling esgotar sem confirmar, cai em **Pendente** por padrão (nunca
+em Aprovado) — só cai em **Rejeitado** se as próprias chamadas a `/users/me`
+falharem (erro de rede/API) ou se a URL trouxer uma pista explícita de rejeição
+(`?status=rejected` etc., usada só como heurística auxiliar pro caso negativo,
+nunca pra aprovar). Ao confirmar Premium, chama `refreshUser()` do `AuthContext`
+pra sincronizar o resto do app (badge PRO no menu, etc.) sem precisar recarregar a
+página.
+
 `shared/utils/period.ts` centraliza a resolução de período (`today`/`week`/`month`/
 `year`/`all` como janelas rolantes ancoradas em "agora", sempre em UTC) — usado tanto
 por `reports.service.ts` quanto por `plan.middleware.ts`.

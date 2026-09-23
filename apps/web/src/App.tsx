@@ -9,6 +9,7 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { SubjectsPage } from '@/pages/SubjectsPage';
+import { SubscriptionCallbackPage } from '@/pages/SubscriptionCallbackPage';
 import { SubscriptionPage } from '@/pages/SubscriptionPage';
 import { TimerPage } from '@/pages/TimerPage';
 
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/subscription/callback" element={<SubscriptionCallbackPage />} />
 
         <Route element={<ProtectedLayout />}>
           <Route path="/timer" element={<TimerPage />} />
