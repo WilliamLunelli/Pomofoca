@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+export type BackgroundSound = 'rain' | 'lofi' | 'white-noise' | 'silence';
+
 export interface PomodoroSettings {
   focusMinutes: number;
   shortBreakMinutes: number;
@@ -7,6 +9,7 @@ export interface PomodoroSettings {
   cyclesBeforeLongBreak: number;
   autoStartNext: boolean;
   soundEnabled: boolean;
+  backgroundSound: BackgroundSound;
 }
 
 const STORAGE_KEY = 'pomofoca:pomodoroSettings';
@@ -18,6 +21,7 @@ const DEFAULTS: PomodoroSettings = {
   cyclesBeforeLongBreak: 4,
   autoStartNext: false,
   soundEnabled: true,
+  backgroundSound: 'silence',
 };
 
 function load(): PomodoroSettings {

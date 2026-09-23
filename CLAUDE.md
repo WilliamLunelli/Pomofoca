@@ -83,6 +83,9 @@ Bibliotecas de apoio: `helmet`, `cors`, `express-rate-limit`, `pino`/`pino-http`
 - Densidade (`comfortable`/`compact`, via `data-density`) e tamanho de fonte (3
   níveis, via `data-font-size`) — ambos definidos como overrides de custom properties
   em `tokens.css`
+- Layout do Timer (`zen`/`panel`, padrão `panel`) e layout dos Relatórios
+  (`narrative`/`dense`, padrão `narrative`) — replicam as duas variantes de cada tela
+  que existiam no protótipo original (ver seções próprias abaixo)
 - Tudo persistido em `localStorage`, nada no backend (preferência é só do
   dispositivo/navegador atual)
 
@@ -173,6 +176,37 @@ ou pular um ciclo, a página faz `POST /api/sessions` com o registro completo
 `subjectId`. As durações (foco/pausa curta/pausa longa/ciclos até pausa longa) ficam
 em `usePomodoroSettings`, só local (o backend não tem esse conceito — é preferência
 de uso, não dado de estudo).
+
+**Duas variantes de layout** (`preferences.timerLayout`, toggle no topo da página):
+- `zen` — só o anel, relógio, controles e o seletor de matéria (minimalista)
+- `panel` (padrão) — tudo isso + coluna lateral com card "Hoje" (breakdown por
+  matéria hoje, via `GET /reports/breakdown?period=today`, recarregado a cada sessão
+  registrada), seletor de som de fundo e card de streak
+
+**Som de fundo** (card "Som de fundo", só no layout `panel`): 4 opções -
+`rain`/`lofi`/`white-noise`/`silence` (padrão), persistido em
+`usePomodoroSettings().backgroundSound`. Toca (via `<audio loop>`) só durante um
+ciclo FOCUS rodando. **Os arquivos de áudio ainda não existem** — ver
+`apps/web/public/sounds/README.md` para os nomes exatos esperados
+(`rain.mp3`/`lofi.mp3`/`white-noise.mp3`) e requisitos técnicos (loop sem clique,
+1-3min, licenciado pra uso comercial). Até lá, o `<audio>` falha silenciosamente
+(`.catch()` no `.play()`) sem quebrar o timer; a UI mostra "em breve" nas opções sem
+arquivo.
+
+### Relatórios (`src/pages/ReportsPage.tsx`)
+
+**Duas variantes de visualização** (`preferences.reportsLayout`, toggle ao lado do
+seletor de período):
+- `narrative` (padrão) — o layout original: 4 KPIs em grid, pizza + barras lado a
+  lado, streak, heatmap
+- `dense` — grid de 2 colunas com mais métricas visíveis ao mesmo tempo: heatmap +
+  barras + tabela de matérias na coluna principal, streak + KPIs empilhados (linha a
+  linha em vez de cards) + distribuição por matéria (barra segmentada + lista) na
+  coluna lateral
+
+Os dois layouts reaproveitam exatamente os mesmos dados já buscados (`summary`,
+`breakdown`, `trend`, `streak`, `heatmap`) — só a apresentação muda, nenhuma request
+extra ao trocar de variante.
 
 ### Ambiente Windows: bug de dependências opcionais do npm
 

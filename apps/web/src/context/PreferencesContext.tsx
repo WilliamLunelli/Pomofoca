@@ -6,12 +6,16 @@ import { generateRamp } from '@/lib/color';
 export type Theme = 'dark' | 'light';
 export type Density = 'comfortable' | 'compact';
 export type FontSize = 'default' | 'large' | 'xlarge';
+export type TimerLayout = 'zen' | 'panel';
+export type ReportsLayout = 'narrative' | 'dense';
 
 interface Preferences {
   theme: Theme;
   accentColor: string;
   density: Density;
   fontSize: FontSize;
+  timerLayout: TimerLayout;
+  reportsLayout: ReportsLayout;
 }
 
 interface PreferencesContextValue extends Preferences {
@@ -19,6 +23,8 @@ interface PreferencesContextValue extends Preferences {
   setAccentColor: (hex: string) => void;
   setDensity: (density: Density) => void;
   setFontSize: (size: FontSize) => void;
+  setTimerLayout: (layout: TimerLayout) => void;
+  setReportsLayout: (layout: ReportsLayout) => void;
 }
 
 const STORAGE_KEY = 'pomofoca:preferences';
@@ -27,6 +33,8 @@ const DEFAULT_PREFERENCES: Preferences = {
   accentColor: '#6D5AE6',
   density: 'comfortable',
   fontSize: 'default',
+  timerLayout: 'panel',
+  reportsLayout: 'narrative',
 };
 
 function loadPreferences(): Preferences {
@@ -79,10 +87,26 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     (fontSize: FontSize) => setPrefs((p) => ({ ...p, fontSize })),
     [],
   );
+  const setTimerLayout = useCallback(
+    (timerLayout: TimerLayout) => setPrefs((p) => ({ ...p, timerLayout })),
+    [],
+  );
+  const setReportsLayout = useCallback(
+    (reportsLayout: ReportsLayout) => setPrefs((p) => ({ ...p, reportsLayout })),
+    [],
+  );
 
   return (
     <PreferencesContext.Provider
-      value={{ ...prefs, setTheme, setAccentColor, setDensity, setFontSize }}
+      value={{
+        ...prefs,
+        setTheme,
+        setAccentColor,
+        setDensity,
+        setFontSize,
+        setTimerLayout,
+        setReportsLayout,
+      }}
     >
       {children}
     </PreferencesContext.Provider>
