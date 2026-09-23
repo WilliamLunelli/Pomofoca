@@ -150,7 +150,7 @@ no dark mode. Pra qualquer fundo "tint" + texto de estado ativo/selecionado, usa
 var(--color-accent) 10%, transparent)`, então sempre correto nos dois temas porque
 deriva do `--color-accent` já theme-aware) + `color: var(--color-accent)` — não usar
 a rampa numérica pra isso. Já aplicado em: nav ativo (`AppShell`), seletor de período
-(`ReportsPage`), toggle mensal/anual (`SubscriptionPage`), `.tag-accent` e o glow
+(`ReportsPage`), `.tag-accent` (usado no badge de desconto do card Premium) e o glow
 atrás do timer (`TimerPage`). O heatmap (`HEATMAP_LEVEL_COLOR` em `ReportsPage`)
 ainda usa a rampa numérica de propósito (precisa de 5 tons bem diferenciados, não um
 tint único) — não foi alterado, pode ter o mesmo problema de contraste no dark mode
@@ -340,8 +340,17 @@ integração via Jest/Supertest.
 **Preço do Premium** (`PREMIUM_MONTHLY_PRICE`/`PREMIUM_YEARLY_PRICE` em `.env`,
 validado com o dono do produto): R$14,90/mês ou R$119,90/ano (equivalente a
 R$9,99/mês, ~33% de desconto — incentivo deliberado para o plano anual, melhor para
-fluxo de caixa e retenção). O frontend (`SubscriptionPage.tsx`) tem um toggle
-mensal/anual, padrão em anual.
+fluxo de caixa e retenção). O backend aceita os dois ciclos
+(`POST /subscriptions/checkout { billingCycle: 'MONTHLY' | 'YEARLY' }`), mas o
+frontend **só oferece o anual** — sem toggle, o card Premium mostra o preço anual em
+destaque com o equivalente mensal x12 riscado ao lado (reforça o desconto sem
+precisar de interação/estado). `src/hooks/useCheckout.ts` centraliza a chamada de
+checkout (POST + redirect pro `checkoutUrl`), reaproveitado por `OnboardingPage` e
+`SubscriptionPage` — o botão Premium do onboarding vai **direto pro checkout do
+Mercado Pago**, não navega mais para `/subscription` (evita o usuário cair de novo
+numa tela de seleção depois de já ter decidido). Preço/features ficam em
+`src/lib/plans.ts`, usado também por `LandingPage` pra manter os três lugares
+sincronizados.
 
 `shared/utils/period.ts` centraliza a resolução de período (`today`/`week`/`month`/
 `year`/`all` como janelas rolantes ancoradas em "agora", sempre em UTC) — usado tanto

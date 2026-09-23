@@ -2,24 +2,25 @@ import { Check, CloudCheck, DownloadSimple, XCircle } from '@phosphor-icons/reac
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
+import { useCheckout } from '@/hooks/useCheckout';
 import { api, ApiError } from '@/lib/api';
 import {
   FREE_FEATURES,
-  MONTHLY_PRICE,
   PREMIUM_FEATURES,
   YEARLY_DISCOUNT_PERCENT,
+  YEARLY_FULL_PRICE_EQUIVALENT,
   YEARLY_MONTHLY_EQUIVALENT,
   YEARLY_PRICE,
   formatBRL,
 } from '@/lib/plans';
-import type { BillingCycle, Subscription } from '@/lib/types';
+import type { Subscription } from '@/lib/types';
 
 export function SubscriptionPage() {
   const { user, refreshUser } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('YEARLY');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const { startCheckout, loading: checkoutLoading, error: checkoutError } = useCheckout();
 
   useEffect(() => {
     api
@@ -28,49 +29,23 @@ export function SubscriptionPage() {
       .catch(() => {});
   }, []);
 
-  async function handleCheckout() {
-    setError(null);
-    setLoading(true);
-    try {
-      const result = await api.post<{ checkoutUrl: string | null }>(
-        '/subscriptions/checkout',
-        {
-          billingCycle,
-        },
-      );
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-      } else {
-        setError(
-          'Não foi possível gerar o link de pagamento. Tente novamente em instantes.',
-        );
-      }
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Não foi possível iniciar a assinatura.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleCancel() {
-    setError(null);
-    setLoading(true);
+    setCancelError(null);
+    setCancelling(true);
     try {
       await api.post('/subscriptions/cancel');
       await refreshUser();
       setSubscription(await api.get<Subscription | null>('/subscriptions'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível cancelar.');
+      setCancelError(
+        err instanceof ApiError ? err.message : 'Não foi possível cancelar.',
+      );
     } finally {
-      setLoading(false);
+      setCancelling(false);
     }
   }
 
   const isPremium = user?.plan === 'PREMIUM';
-  const price = billingCycle === 'YEARLY' ? YEARLY_PRICE : MONTHLY_PRICE;
-  const priceSuffix = billingCycle === 'YEARLY' ? '/ano' : '/mês';
 
   return (
     <div className="p-6 md:p-8">
@@ -78,44 +53,14 @@ export function SubscriptionPage() {
         <h3 className="mb-3 max-w-[22ch] text-2xl">
           Seu histórico completo custa menos que um café.
         </h3>
-        <p className="mb-6 max-w-[50ch] text-sm text-muted">
+        <p className="mb-8 max-w-[50ch] text-sm text-muted">
           O timer é grátis para sempre. O Premium guarda cada sessão desde o primeiro dia
           — é o que faz o relatório valer.
         </p>
 
-        {!isPremium && (
-          <div className="mb-8 inline-flex rounded-sm border border-divider p-0.5">
-            <button
-              onClick={() => setBillingCycle('MONTHLY')}
-              className="rounded-sm px-3 py-1.5 text-xs transition-colors"
-              style={{
-                background:
-                  billingCycle === 'MONTHLY' ? 'var(--color-accent-tint)' : 'transparent',
-                color:
-                  billingCycle === 'MONTHLY' ? 'var(--color-accent)' : 'var(--f-muted)',
-              }}
-            >
-              Mensal
-            </button>
-            <button
-              onClick={() => setBillingCycle('YEARLY')}
-              className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs transition-colors"
-              style={{
-                background:
-                  billingCycle === 'YEARLY' ? 'var(--color-accent-tint)' : 'transparent',
-                color:
-                  billingCycle === 'YEARLY' ? 'var(--color-accent)' : 'var(--f-muted)',
-              }}
-            >
-              Anual
-              <span className="tag tag-accent text-[9px]">
-                -{YEARLY_DISCOUNT_PERCENT}%
-              </span>
-            </button>
-          </div>
+        {(checkoutError || cancelError) && (
+          <p className="mb-6 text-sm text-cta">{checkoutError ?? cancelError}</p>
         )}
-
-        {error && <p className="mb-6 text-sm text-cta">{error}</p>}
 
         <div className="mb-8 grid gap-6 sm:grid-cols-2">
           <div className="card flex flex-col gap-4 p-8">
@@ -148,23 +93,24 @@ export function SubscriptionPage() {
           >
             <div className="flex items-center justify-between">
               <h6 className="m-0">Premium</h6>
-              <span className="text-[10px] uppercase tracking-wide text-accent">
-                recomendado
+              <span className="tag tag-accent text-[9px]">
+                -{YEARLY_DISCOUNT_PERCENT}%
               </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="font-heading text-3xl tabular-nums tracking-tight">
-                R${formatBRL(isPremium ? MONTHLY_PRICE : price)}
-              </span>
-              <span className="text-xs text-muted">
-                {isPremium ? '/mês' : priceSuffix}
-              </span>
-            </div>
-            {!isPremium && billingCycle === 'YEARLY' && (
-              <div className="text-xs text-ok">
-                equivalente a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-heading text-3xl tabular-nums tracking-tight">
+                  R${formatBRL(YEARLY_PRICE)}
+                </span>
+                <span className="text-xs text-muted">/ano</span>
+                <span className="text-sm tabular-nums text-muted line-through">
+                  R${formatBRL(YEARLY_FULL_PRICE_EQUIVALENT)}
+                </span>
               </div>
-            )}
+              <div className="mt-1 text-xs text-ok">
+                equivale a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês
+              </div>
+            </div>
             <div className="text-xs text-muted">
               Cobrado via Mercado Pago · cartão ou PIX
             </div>
@@ -181,17 +127,17 @@ export function SubscriptionPage() {
               <button
                 className="btn btn-secondary"
                 onClick={handleCancel}
-                disabled={loading}
+                disabled={cancelling}
               >
-                {loading ? 'Cancelando…' : 'Cancelar assinatura'}
+                {cancelling ? 'Cancelando…' : 'Cancelar assinatura'}
               </button>
             ) : (
               <button
                 className="btn btn-primary"
-                onClick={handleCheckout}
-                disabled={loading}
+                onClick={() => startCheckout('YEARLY')}
+                disabled={checkoutLoading}
               >
-                {loading ? 'Abrindo checkout…' : 'Assinar Premium'}
+                {checkoutLoading ? 'Abrindo checkout…' : 'Assinar Premium'}
               </button>
             )}
           </div>

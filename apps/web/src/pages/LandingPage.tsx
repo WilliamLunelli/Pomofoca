@@ -11,9 +11,11 @@ import { Foki } from '@/components/Foki';
 import { useAuth } from '@/context/AuthContext';
 import {
   FREE_FEATURES,
-  MONTHLY_PRICE,
   PREMIUM_FEATURES,
   YEARLY_DISCOUNT_PERCENT,
+  YEARLY_FULL_PRICE_EQUIVALENT,
+  YEARLY_MONTHLY_EQUIVALENT,
+  YEARLY_PRICE,
   formatBRL,
 } from '@/lib/plans';
 
@@ -121,9 +123,8 @@ export function LandingPage() {
             Comece grátis, evolua quando quiser
           </h2>
           <p className="mb-10 text-center text-sm text-muted">
-            O plano Premium libera o histórico completo — a partir de R$
-            {formatBRL(MONTHLY_PRICE)}/mês, com até {YEARLY_DISCOUNT_PERCENT}% de desconto
-            no anual.
+            O plano Premium libera o histórico completo por R${formatBRL(YEARLY_PRICE)}
+            /ano — equivalente a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês.
           </p>
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="card flex flex-col gap-4 p-8">
@@ -151,12 +152,25 @@ export function LandingPage() {
                 boxShadow: 'var(--shadow-md)',
               }}
             >
-              <h6 className="m-0">Premium</h6>
-              <div className="flex items-baseline gap-1">
-                <span className="font-heading text-2xl tabular-nums tracking-tight">
-                  R${formatBRL(MONTHLY_PRICE)}
+              <div className="flex items-center justify-between">
+                <h6 className="m-0">Premium</h6>
+                <span className="tag tag-accent text-[9px]">
+                  -{YEARLY_DISCOUNT_PERCENT}%
                 </span>
-                <span className="text-xs text-muted">/mês</span>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-heading text-2xl tabular-nums tracking-tight">
+                    R${formatBRL(YEARLY_PRICE)}
+                  </span>
+                  <span className="text-xs text-muted">/ano</span>
+                  <span className="text-xs tabular-nums text-muted line-through">
+                    R${formatBRL(YEARLY_FULL_PRICE_EQUIVALENT)}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-ok">
+                  equivale a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês
+                </div>
               </div>
               <div className="h-px bg-divider" />
               <div className="flex flex-col gap-2.5">
