@@ -92,7 +92,9 @@ Bibliotecas de apoio: `helmet`, `cors`, `express-rate-limit`, `pino`/`pino-http`
 src/
 ├── components/
 │   ├── AppShell.tsx              # sidebar (desktop) + nav inferior (mobile)
-│   └── Foki.tsx                  # mascote reativo (ver seção própria abaixo)
+│   ├── Foki.tsx                  # mascote reativo (ver seção própria abaixo)
+│   └── PlanCards.tsx             # os 3 cards de plano, usado em Landing/Onboarding/
+│                                     Subscription (ver seção "Preço do Premium")
 ├── context/
 │   ├── AuthContext.tsx           # usuário logado, login/register/logout, refresh
 │   └── PreferencesContext.tsx    # tema, cor de destaque, densidade, fonte
@@ -340,17 +342,33 @@ integração via Jest/Supertest.
 **Preço do Premium** (`PREMIUM_MONTHLY_PRICE`/`PREMIUM_YEARLY_PRICE` em `.env`,
 validado com o dono do produto): R$14,90/mês ou R$119,90/ano (equivalente a
 R$9,99/mês, ~33% de desconto — incentivo deliberado para o plano anual, melhor para
-fluxo de caixa e retenção). O backend aceita os dois ciclos
-(`POST /subscriptions/checkout { billingCycle: 'MONTHLY' | 'YEARLY' }`), mas o
-frontend **só oferece o anual** — sem toggle, o card Premium mostra o preço anual em
-destaque com o equivalente mensal x12 riscado ao lado (reforça o desconto sem
-precisar de interação/estado). `src/hooks/useCheckout.ts` centraliza a chamada de
-checkout (POST + redirect pro `checkoutUrl`), reaproveitado por `OnboardingPage` e
-`SubscriptionPage` — o botão Premium do onboarding vai **direto pro checkout do
-Mercado Pago**, não navega mais para `/subscription` (evita o usuário cair de novo
-numa tela de seleção depois de já ter decidido). Preço/features ficam em
-`src/lib/plans.ts`, usado também por `LandingPage` pra manter os três lugares
-sincronizados.
+fluxo de caixa e retenção). O backend aceita os dois ciclos via
+`POST /subscriptions/checkout { billingCycle: 'MONTHLY' | 'YEARLY' }`, e o frontend
+oferece os dois lado a lado: `src/components/PlanCards.tsx` renderiza sempre **3
+cards com peso visual equivalente** (Gratuito, Premium Mensal, Premium Anual — sem
+toggle, sem link escondido), reaproveitado por `LandingPage`, `OnboardingPage` e
+`SubscriptionPage`. O card anual se destaca só pela borda accent + selo "-33%" +
+"Recomendado" (não por tamanho), e mostra o preço riscado equivalente (12x o mensal)
+ao lado do preço anual. Os benefícios (`PREMIUM_FEATURES`) são idênticos nos dois
+cards pagos — só muda preço/periodicidade. Cada card recebe sua ação via prop
+(`PlanCardAction`: `label` + `to` ou `onClick` + `disabled`/`loading`), então quem
+usa o componente decide o que cada botão faz:
+- `LandingPage` (visitante deslogado): os 3 levam pra `/register` (precisa de conta
+  pra assinar); se já logado, Gratuito vai pra `/timer` e os dois pagos pra
+  `/subscription` (checkout de verdade só roda em página autenticada)
+- `OnboardingPage`: Gratuito navega pra `/timer`; Mensal/Anual chamam
+  `useCheckout().startCheckout(cycle)` **direto** — não navega mais pra
+  `/subscription` (evita o usuário cair numa tela de seleção depois de já ter
+  decidido ali)
+- `SubscriptionPage`: se o usuário já é Premium, o card do ciclo atual vira
+  "Cancelar assinatura" e o outro ciclo pago fica desabilitado ("Plano não ativo" —
+  trocar de mensal pra anual ou vice-versa não é suportado neste MVP, exigiria
+  cancelar e assinar de novo)
+
+`src/hooks/useCheckout.ts` centraliza a chamada de checkout (POST + redirect pro
+`checkoutUrl`) e expõe `loadingCycle` (não só um booleano) pra cada botão saber se é
+ELE que está carregando, já que mensal e anual convivem na mesma tela e podem ser
+clicados independentemente. Preço/features ficam em `src/lib/plans.ts`.
 
 `shared/utils/period.ts` centraliza a resolução de período (`today`/`week`/`month`/
 `year`/`all` como janelas rolantes ancoradas em "agora", sempre em UTC) — usado tanto

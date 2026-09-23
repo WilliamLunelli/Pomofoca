@@ -4,12 +4,12 @@ import { api, ApiError } from '@/lib/api';
 import type { BillingCycle } from '@/lib/types';
 
 export function useCheckout() {
-  const [loading, setLoading] = useState(false);
+  const [loadingCycle, setLoadingCycle] = useState<BillingCycle | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(billingCycle: BillingCycle = 'YEARLY') {
+  async function startCheckout(billingCycle: BillingCycle) {
     setError(null);
-    setLoading(true);
+    setLoadingCycle(billingCycle);
     try {
       const result = await api.post<{ checkoutUrl: string | null }>(
         '/subscriptions/checkout',
@@ -29,9 +29,9 @@ export function useCheckout() {
         err instanceof ApiError ? err.message : 'Não foi possível iniciar a assinatura.',
       );
     } finally {
-      setLoading(false);
+      setLoadingCycle(null);
     }
   }
 
-  return { startCheckout, loading, error };
+  return { startCheckout, loadingCycle, error };
 }
