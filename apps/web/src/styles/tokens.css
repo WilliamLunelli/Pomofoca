@@ -26,6 +26,12 @@
   --color-accent-800: #423a6a;
   --color-accent-900: #2b2741;
 
+  /* Tint translucido derivado do accent atual - sempre correto nos dois temas
+     (ao contrario da rampa 100-900 acima, que nao se adapta ao dark mode).
+     Preferir isto para fundos de estados ativos/selecionados; use --color-accent
+     direto para texto/icone sobre o tint. */
+  --color-accent-tint: color-mix(in srgb, var(--color-accent) 10%, transparent);
+
   --f-track: #e8e6ed;
   --f-tint: rgba(31, 27, 36, 0.04);
   --f-break: #4ecdc4;

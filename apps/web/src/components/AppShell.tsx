@@ -45,11 +45,17 @@ export function AppShell() {
               key={to}
               to={to}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-sm border px-3 py-2.5 text-sm transition-colors ${
-                  isActive
-                    ? 'border-accent-300 bg-accent-100 text-accent-700'
-                    : 'border-transparent text-text hover:bg-tint'
+                `flex items-center gap-2.5 rounded-sm px-3 py-2.5 text-sm transition-colors ${
+                  isActive ? '' : 'text-text hover:bg-tint'
                 }`
+              }
+              style={({ isActive }) =>
+                isActive
+                  ? {
+                      background: 'var(--color-accent-tint)',
+                      color: 'var(--color-accent)',
+                    }
+                  : undefined
               }
             >
               <Icon size={17} />

@@ -2,7 +2,9 @@ import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
 
 import { AppShell } from '@/components/AppShell';
 import { useAuth } from '@/context/AuthContext';
+import { LandingPage } from '@/pages/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { OnboardingPage } from '@/pages/OnboardingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -32,11 +34,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
 
         <Route element={<ProtectedLayout />}>
-          <Route path="/" element={<Navigate to="/timer" replace />} />
           <Route path="/timer" element={<TimerPage />} />
           <Route path="/subjects" element={<SubjectsPage />} />
           <Route path="/reports" element={<ReportsPage />} />

@@ -90,24 +90,71 @@ Bibliotecas de apoio: `helmet`, `cors`, `express-rate-limit`, `pino`/`pino-http`
 
 ```
 src/
-├── components/AppShell.tsx      # sidebar (desktop) + nav inferior (mobile)
+├── components/
+│   ├── AppShell.tsx              # sidebar (desktop) + nav inferior (mobile)
+│   └── Foki.tsx                  # mascote reativo (ver seção própria abaixo)
 ├── context/
-│   ├── AuthContext.tsx          # usuário logado, login/register/logout, refresh
-│   └── PreferencesContext.tsx   # tema, cor de destaque, densidade, fonte
+│   ├── AuthContext.tsx           # usuário logado, login/register/logout, refresh
+│   └── PreferencesContext.tsx    # tema, cor de destaque, densidade, fonte
 ├── hooks/
 │   ├── useSubjects.ts
-│   └── usePomodoroSettings.ts   # duração dos ciclos - só local, não é campo do backend
+│   └── usePomodoroSettings.ts    # duração dos ciclos - só local, não é campo do backend
 ├── lib/
-│   ├── api.ts                   # fetch wrapper com refresh automático de token
-│   ├── color.ts                 # OKLCH + generateRamp + paletas curadas
-│   └── types.ts                 # tipos das respostas da API (não vieram de
-│                                    packages/shared ainda - ver nota abaixo)
-├── pages/                       # Timer, Subjects, Reports, Settings, Subscription,
-│                                    Login, Register
-├── styles/tokens.css            # design tokens como CSS custom properties
-├── App.tsx                      # rotas (react-router)
+│   ├── api.ts                    # fetch wrapper com refresh automático de token
+│   ├── color.ts                  # OKLCH + generateRamp + paletas curadas
+│   ├── plans.ts                  # preço/features Free-Premium, compartilhado entre
+│   │                                 LandingPage, OnboardingPage e SubscriptionPage
+│   └── types.ts                  # tipos das respostas da API (não vieram de
+│                                     packages/shared ainda - ver nota abaixo)
+├── pages/                        # Landing (pública), Onboarding (pós-cadastro),
+│                                     Timer, Subjects, Reports, Settings, Subscription,
+│                                     Login, Register
+├── styles/tokens.css             # design tokens como CSS custom properties
+├── App.tsx                       # rotas (react-router)
 └── main.tsx
 ```
+
+### Rotas públicas vs protegidas
+
+`/` (landing), `/login`, `/register` e `/onboarding` são públicas no roteador (fora
+do grupo `ProtectedLayout`); `/onboarding` faz sua própria checagem de `useAuth()` e
+redireciona pra `/login` se não houver usuário (só faz sentido logo após o cadastro).
+Todo o resto (`/timer`, `/subjects`, `/reports`, `/settings`, `/subscription`) fica
+dentro do `ProtectedLayout`, que exige login. Fluxo pós-cadastro:
+`RegisterPage` → `/onboarding` (Free vs Premium) → `/timer` ou `/subscription`. Login
+normal vai direto pra `/timer`, sem passar pelo onboarding.
+
+### Foki (`src/components/Foki.tsx`)
+
+Mascote reativo, **não conversacional** — só troca de pose/expressão via prop
+`state: 'idle' | 'focused' | 'celebrating' | 'sad' | 'sleeping'`, sem lógica própria
+de app. SVG inline usando os tokens de cor (se adapta a tema/cor de destaque
+automaticamente). Mapeamento de estado usado hoje:
+- Card de streak (`TimerPage` e `ReportsPage`): `idle` com sequência ativa,
+  `sleeping` quando a sequência está zerada. `sad` existe no componente mas não está
+  ligado a nenhum evento ainda — fica disponível pra uso futuro (ex: relatório sem
+  nenhuma atividade no período)
+- `TimerPage`: `focused` (com fone de ouvido) enquanto um ciclo FOCUS está rodando;
+  `celebrating` (bounce + sparkles, ~1.6s) no instante em que um ciclo FOCUS é
+  concluído; `idle` em qualquer outro caso (pausado, parado, ou durante uma pausa)
+- `LandingPage`: `idle` perto do hero, `sleeping` pequena no rodapé, como assinatura
+  discreta de marca
+
+### Tint de accent theme-aware (`--color-accent-tint`)
+
+A rampa `--color-accent-100..900` (gerada em `generateRamp()`) usa a mesma escala de
+luminosidade **independente do tema**, então usar `accent-100`/`accent-700` direto
+pra fundo+texto de um estado ativo (ex: item de menu selecionado) fica quase branco
+no dark mode. Pra qualquer fundo "tint" + texto de estado ativo/selecionado, usar
+`background: var(--color-accent-tint)` (definido via `color-mix(in srgb,
+var(--color-accent) 10%, transparent)`, então sempre correto nos dois temas porque
+deriva do `--color-accent` já theme-aware) + `color: var(--color-accent)` — não usar
+a rampa numérica pra isso. Já aplicado em: nav ativo (`AppShell`), seletor de período
+(`ReportsPage`), toggle mensal/anual (`SubscriptionPage`), `.tag-accent` e o glow
+atrás do timer (`TimerPage`). O heatmap (`HEATMAP_LEVEL_COLOR` em `ReportsPage`)
+ainda usa a rampa numérica de propósito (precisa de 5 tons bem diferenciados, não um
+tint único) — não foi alterado, pode ter o mesmo problema de contraste no dark mode
+se isso incomodar no futuro.
 
 **Nota de arquitetura pendente:** os tipos de resposta da API (`src/lib/types.ts`)
 foram definidos localmente em `apps/web` por velocidade, em vez de irem para

@@ -12,6 +12,7 @@ import {
   XAxis,
 } from 'recharts';
 
+import { Foki } from '@/components/Foki';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api';
 import type {
@@ -155,9 +156,8 @@ export function ReportsPage() {
                 borderColor:
                   period === p.value ? 'var(--color-accent)' : 'var(--color-divider)',
                 background:
-                  period === p.value ? 'var(--color-accent-100)' : 'transparent',
-                color:
-                  period === p.value ? 'var(--color-accent-700)' : 'var(--color-text)',
+                  period === p.value ? 'var(--color-accent-tint)' : 'transparent',
+                color: period === p.value ? 'var(--color-accent)' : 'var(--color-text)',
               }}
             >
               {p.label}
@@ -283,6 +283,7 @@ export function ReportsPage() {
 
           {streak && (
             <div className="card flex items-center gap-4 p-6">
+              <Foki state={streak.currentStreak > 0 ? 'idle' : 'sleeping'} size={44} />
               <Flame weight="fill" size={28} className="text-cta" />
               <div>
                 <div className="font-heading text-xl tabular-nums">

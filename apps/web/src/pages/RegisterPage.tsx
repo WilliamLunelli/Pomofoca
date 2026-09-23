@@ -23,7 +23,7 @@ export function RegisterPage() {
     setSubmitting(true);
     try {
       await register(name, email, password);
-      navigate('/timer');
+      navigate('/onboarding');
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'Não foi possível criar sua conta.',

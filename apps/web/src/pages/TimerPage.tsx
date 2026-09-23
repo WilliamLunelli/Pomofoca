@@ -1,6 +1,7 @@
 import { ArrowCounterClockwise, Flame, SkipForward } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Foki, type FokiState } from '@/components/Foki';
 import { useAuth } from '@/context/AuthContext';
 import { usePomodoroSettings } from '@/hooks/usePomodoroSettings';
 import { useSubjects } from '@/hooks/useSubjects';
@@ -48,6 +49,7 @@ export function TimerPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
   const [streak, setStreak] = useState<ReportStreak | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
 
   const startedAtRef = useRef<Date | null>(null);
   const totalRef = useRef(durationFor('FOCUS', settings));
@@ -123,6 +125,10 @@ export function TimerPage() {
       setRemaining((r) => {
         if (r <= 1) {
           logSession(mode, totalRef.current, true);
+          if (mode === 'FOCUS') {
+            setCelebrating(true);
+            setTimeout(() => setCelebrating(false), 1600);
+          }
           advance();
           setRunning(settings.autoStartNext);
           return totalRef.current;
@@ -158,6 +164,14 @@ export function TimerPage() {
   const offset = CIRCUMFERENCE * (totalRef.current > 0 ? elapsed / totalRef.current : 0);
   const ringColor = mode === 'FOCUS' ? 'var(--color-accent)' : 'var(--f-break)';
 
+  const timerFokiState: FokiState = celebrating
+    ? 'celebrating'
+    : running && mode === 'FOCUS'
+      ? 'focused'
+      : 'idle';
+  const streakFokiState: FokiState =
+    streak && streak.currentStreak > 0 ? 'idle' : 'sleeping';
+
   return (
     <div className="relative min-h-full">
       <div
@@ -165,8 +179,8 @@ export function TimerPage() {
         style={{
           background:
             mode === 'FOCUS'
-              ? 'radial-gradient(circle at 50% 0%, var(--color-accent-100), transparent 60%)'
-              : 'radial-gradient(circle at 50% 0%, rgba(78,205,196,0.12), transparent 60%)',
+              ? 'radial-gradient(circle at 50% 0%, var(--color-accent-tint), transparent 60%)'
+              : 'radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--f-break) 10%, transparent), transparent 60%)',
         }}
       />
       <div className="relative p-6 md:p-8">
@@ -182,6 +196,7 @@ export function TimerPage() {
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="flex flex-col items-center gap-6">
+            <Foki state={timerFokiState} size={56} />
             <div className="relative aspect-square w-full max-w-[340px]">
               <svg viewBox="0 0 220 220" className="w-full -rotate-90">
                 <circle
@@ -289,7 +304,8 @@ export function TimerPage() {
             </div>
 
             {streak && (
-              <div className="card flex items-center gap-2.5 p-4">
+              <div className="card flex items-center gap-3 p-4">
+                <Foki state={streakFokiState} size={40} />
                 <Flame weight="fill" size={20} className="text-cta" />
                 <div className="text-[13px]">
                   <b className="font-heading font-medium">{streak.currentStreak} dias</b>{' '}

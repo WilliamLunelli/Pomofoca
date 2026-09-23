@@ -3,35 +3,16 @@ import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api';
+import {
+  FREE_FEATURES,
+  MONTHLY_PRICE,
+  PREMIUM_FEATURES,
+  YEARLY_DISCOUNT_PERCENT,
+  YEARLY_MONTHLY_EQUIVALENT,
+  YEARLY_PRICE,
+  formatBRL,
+} from '@/lib/plans';
 import type { BillingCycle, Subscription } from '@/lib/types';
-
-const FREE_FEATURES = [
-  'Timer pomodoro ilimitado',
-  'Até 3 matérias ativas',
-  'Relatórios dos últimos 7 dias',
-];
-
-const PREMIUM_FEATURES = [
-  'Matérias ilimitadas',
-  'Histórico completo de estudo',
-  'Heatmap anual',
-  'Comparativo entre períodos',
-  'Exportação de relatórios',
-];
-
-const MONTHLY_PRICE = 14.9;
-const YEARLY_PRICE = 119.9;
-const YEARLY_MONTHLY_EQUIVALENT = YEARLY_PRICE / 12;
-const YEARLY_DISCOUNT_PERCENT = Math.round(
-  (1 - YEARLY_MONTHLY_EQUIVALENT / MONTHLY_PRICE) * 100,
-);
-
-function formatBRL(value: number): string {
-  return value.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 export function SubscriptionPage() {
   const { user, refreshUser } = useAuth();
@@ -109,11 +90,9 @@ export function SubscriptionPage() {
               className="rounded-sm px-3 py-1.5 text-xs transition-colors"
               style={{
                 background:
-                  billingCycle === 'MONTHLY' ? 'var(--color-accent-100)' : 'transparent',
+                  billingCycle === 'MONTHLY' ? 'var(--color-accent-tint)' : 'transparent',
                 color:
-                  billingCycle === 'MONTHLY'
-                    ? 'var(--color-accent-700)'
-                    : 'var(--f-muted)',
+                  billingCycle === 'MONTHLY' ? 'var(--color-accent)' : 'var(--f-muted)',
               }}
             >
               Mensal
@@ -123,11 +102,9 @@ export function SubscriptionPage() {
               className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs transition-colors"
               style={{
                 background:
-                  billingCycle === 'YEARLY' ? 'var(--color-accent-100)' : 'transparent',
+                  billingCycle === 'YEARLY' ? 'var(--color-accent-tint)' : 'transparent',
                 color:
-                  billingCycle === 'YEARLY'
-                    ? 'var(--color-accent-700)'
-                    : 'var(--f-muted)',
+                  billingCycle === 'YEARLY' ? 'var(--color-accent)' : 'var(--f-muted)',
               }}
             >
               Anual
