@@ -1,13 +1,18 @@
 import request from 'supertest';
 
+const pomodoroSessionMock = {
+  create: jest.fn(),
+  findMany: jest.fn(),
+  findFirst: jest.fn(),
+  delete: jest.fn(),
+};
+
 jest.mock('../../src/config/database', () => ({
   prisma: {
-    pomodoroSession: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      delete: jest.fn(),
-    },
+    pomodoroSession: pomodoroSessionMock,
+    $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+      callback({ pomodoroSession: pomodoroSessionMock }),
+    ),
   },
 }));
 
@@ -21,6 +26,11 @@ jest.mock('../../src/config/redis', () => ({
 
 jest.mock('../../src/modules/subjects/subjects.service', () => ({
   getSubject: jest.fn(),
+}));
+
+jest.mock('../../src/modules/reports/reports.service', () => ({
+  recordCompletedSession: jest.fn(),
+  reverseCompletedSession: jest.fn(),
 }));
 
 import { prisma } from '../../src/config/database';

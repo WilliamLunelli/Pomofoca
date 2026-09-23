@@ -3,6 +3,7 @@ import type { SessionType } from '@pomofoca/shared';
 import { prisma } from '../../config/database';
 import { AppError } from '../../shared/errors/AppError';
 import { ERROR_CODES } from '../../shared/errors/errorCodes';
+import * as reportsService from '../reports/reports.service';
 import * as subjectsService from '../subjects/subjects.service';
 import type { CreateSessionInput, ListSessionsQuery } from './sessions.schema';
 
@@ -19,16 +20,22 @@ export async function createSession(userId: string, input: CreateSessionInput) {
     await subjectsService.getSubject(userId, input.subjectId);
   }
 
-  return prisma.pomodoroSession.create({
-    data: {
-      userId,
-      subjectId: input.subjectId,
-      type: input.type as SessionType,
-      durationSeconds: input.durationSeconds,
-      completed: input.completed,
-      startedAt: input.startedAt,
-      finishedAt: input.finishedAt,
-    },
+  return prisma.$transaction(async (tx) => {
+    const session = await tx.pomodoroSession.create({
+      data: {
+        userId,
+        subjectId: input.subjectId,
+        type: input.type as SessionType,
+        durationSeconds: input.durationSeconds,
+        completed: input.completed,
+        startedAt: input.startedAt,
+        finishedAt: input.finishedAt,
+      },
+    });
+
+    await reportsService.recordCompletedSession(tx, session);
+
+    return session;
   });
 }
 
@@ -53,6 +60,10 @@ export async function getSession(userId: string, id: string) {
 }
 
 export async function deleteSession(userId: string, id: string) {
-  await findOwnedSession(userId, id);
-  await prisma.pomodoroSession.delete({ where: { id } });
+  const session = await findOwnedSession(userId, id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pomodoroSession.delete({ where: { id } });
+    await reportsService.reverseCompletedSession(tx, session);
+  });
 }

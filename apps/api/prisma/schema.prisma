@@ -37,6 +37,7 @@ model User {
   subjects        Subject[]
   sessions        PomodoroSession[]
   subscriptions   Subscription[]
+  dailyStudyStats DailyStudyStat[]
 
   @@map("users")
 }
@@ -77,6 +78,29 @@ model PomodoroSession {
   @@index([subjectId])
   @@index([userId, startedAt])
   @@map("pomodoro_sessions")
+}
+
+// Agregado diario por usuario, atualizado incrementalmente (upsert) quando uma
+// PomodoroSession e criada. Os relatorios sempre consultam esta tabela, nunca
+// recalculam em cima de PomodoroSession diretamente - mantem as consultas rapidas
+// independente do tamanho do historico.
+model DailyStudyStat {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  date                DateTime @db.Date
+  totalSeconds        Int      @default(0) @map("total_seconds")
+  focusSeconds        Int      @default(0) @map("focus_seconds")
+  sessionsCompleted   Int      @default(0) @map("sessions_completed")
+  sessionsInterrupted Int      @default(0) @map("sessions_interrupted")
+  // Map<subjectId | "none", { seconds: number; completed: number }> - apenas sessoes FOCUS
+  bySubject           Json     @default("{}") @map("by_subject")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_study_stats")
 }
 
 model Subscription {

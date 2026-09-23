@@ -1,14 +1,19 @@
 import { AppError } from '../../src/shared/errors/AppError';
 import { ERROR_CODES } from '../../src/shared/errors/errorCodes';
 
+const pomodoroSessionMock = {
+  create: jest.fn(),
+  findMany: jest.fn(),
+  findFirst: jest.fn(),
+  delete: jest.fn(),
+};
+
 jest.mock('../../src/config/database', () => ({
   prisma: {
-    pomodoroSession: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      delete: jest.fn(),
-    },
+    pomodoroSession: pomodoroSessionMock,
+    $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+      callback({ pomodoroSession: pomodoroSessionMock }),
+    ),
   },
 }));
 
@@ -16,7 +21,13 @@ jest.mock('../../src/modules/subjects/subjects.service', () => ({
   getSubject: jest.fn(),
 }));
 
+jest.mock('../../src/modules/reports/reports.service', () => ({
+  recordCompletedSession: jest.fn(),
+  reverseCompletedSession: jest.fn(),
+}));
+
 import { prisma } from '../../src/config/database';
+import * as reportsService from '../../src/modules/reports/reports.service';
 import * as subjectsService from '../../src/modules/subjects/subjects.service';
 import * as sessionsService from '../../src/modules/sessions/sessions.service';
 
@@ -29,6 +40,10 @@ const mockedPrisma = prisma as unknown as {
   };
 };
 const mockedSubjectsService = subjectsService as unknown as { getSubject: jest.Mock };
+const mockedReportsService = reportsService as unknown as {
+  recordCompletedSession: jest.Mock;
+  reverseCompletedSession: jest.Mock;
+};
 
 const startedAt = new Date('2026-01-01T10:00:00.000Z');
 const finishedAt = new Date('2026-01-01T10:25:00.000Z');
@@ -69,6 +84,10 @@ describe('sessions.service', () => {
       },
     });
     expect(result).toEqual(baseSession);
+    expect(mockedReportsService.recordCompletedSession).toHaveBeenCalledWith(
+      expect.anything(),
+      baseSession,
+    );
   });
 
   it('validates subject ownership before creating a session tied to a subject', async () => {
@@ -125,5 +144,9 @@ describe('sessions.service', () => {
     expect(mockedPrisma.pomodoroSession.delete).toHaveBeenCalledWith({
       where: { id: 'session-1' },
     });
+    expect(mockedReportsService.reverseCompletedSession).toHaveBeenCalledWith(
+      expect.anything(),
+      baseSession,
+    );
   });
 });
