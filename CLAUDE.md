@@ -150,23 +150,38 @@ Feito:
    + `.env.example`
 3. Arquivos base do backend (`app.ts`, `server.ts`, `config/*`)
 4. `schema.prisma` com o rascunho revisado (User, Subject, PomodoroSession,
-   Subscription) — decisões já validadas com o dono do projeto, mas **migration
-   ainda não foi gerada**
+   Subscription) — decisões já validadas com o dono do projeto. Migration `init`
+   gerada e aplicada.
 5. Módulo `auth` completo: registro, login, refresh (com rotação), logout, OAuth
    Google — serve de padrão de referência para os próximos módulos. Testes unitários
    (`tests/unit/auth.service.test.ts`) e de integração
-   (`tests/integration/auth.routes.test.ts`) com Jest + Supertest.
+   (`tests/integration/auth.routes.test.ts`) com Jest + Supertest — **8/8 passando**.
+6. Validação end-to-end contra Postgres/Redis reais via docker-compose: registro,
+   login, refresh com rotação (reuso do token antigo é corretamente rejeitado) e
+   login inválido testados manualmente com a API rodando (`npm run dev:api`).
+7. Repositório git inicializado e publicado em
+   https://github.com/WilliamLunelli/Pomofoca (branch `main`).
+
+Notas de ambiente descobertas durante a validação:
+- `config/env.ts` carrega o `.env` da raiz do monorepo explicitamente via `dotenv`
+  (necessário porque `npm run --workspace` roda com `cwd` no próprio workspace, não
+  na raiz).
+- Em máquinas Windows com um PostgreSQL nativo já instalado e rodando na porta 5432
+  (IPv4), o container Docker só consegue publicar a porta no IPv6, e conexões para
+  `localhost:5432` caem no serviço errado mesmo com o container ativo. Por isso o
+  Postgres do `docker-compose.yml` é publicado em **5433** no host (a comunicação
+  interna entre containers continua em 5432 via nome do serviço). Ver comentário em
+  `.env.example`.
+- `expiresIn` do `jsonwebtoken` recebe segundos (via `parseDurationToSeconds`) em vez
+  da string bruta (`"15m"`), para compatibilidade com a tipagem atual de
+  `@types/jsonwebtoken`.
 
 Pendente (ordem combinada — só avançar depois que o módulo anterior for validado):
-1. `npm install` na raiz + primeira `prisma migrate dev` (precisa de Postgres/Redis
-   rodando — via `docker-compose up postgres redis` ou local)
-2. Rodar a suíte de testes (`npm run test --workspace=apps/api`) para validar o
-   módulo `auth`
-3. Implementar `subjects` seguindo o mesmo padrão do `auth`
-4. Implementar `sessions`
-5. Implementar `reports` (geração pesada sempre via fila BullMQ, nunca síncrona)
-6. Implementar `subscriptions` (integração Mercado Pago + webhook)
-7. Só então definir e começar `apps/web`
+1. Implementar `subjects` seguindo o mesmo padrão do `auth`
+2. Implementar `sessions`
+3. Implementar `reports` (geração pesada sempre via fila BullMQ, nunca síncrona)
+4. Implementar `subscriptions` (integração Mercado Pago + webhook)
+5. Só então definir e começar `apps/web`
 
 ## Convenções de trabalho com o Claude Code
 
