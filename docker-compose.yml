@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pomofoca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pomofoca}
+      POSTGRES_DB: ${POSTGRES_DB:-pomofoca}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pomofoca}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pomofoca}:${POSTGRES_PASSWORD:-pomofoca}@postgres:5432/${POSTGRES_DB:-pomofoca}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3333:3333'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-reports:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pomofoca}:${POSTGRES_PASSWORD:-pomofoca}@postgres:5432/${POSTGRES_DB:-pomofoca}
+      REDIS_URL: redis://redis:6379
+    command: ['node', 'apps/api/dist/jobs/workers/reports.worker.js']
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-notifications:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pomofoca}:${POSTGRES_PASSWORD:-pomofoca}@postgres:5432/${POSTGRES_DB:-pomofoca}
+      REDIS_URL: redis://redis:6379
+    command: ['node', 'apps/api/dist/jobs/workers/notifications.worker.js']
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

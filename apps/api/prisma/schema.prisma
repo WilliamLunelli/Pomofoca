@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PREMIUM
+}
+
+enum SessionType {
+  FOCUS
+  SHORT_BREAK
+  LONG_BREAK
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String?  @map("password_hash")
+  googleId     String?  @unique @map("google_id")
+  plan         Plan     @default(FREE)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  subjects        Subject[]
+  sessions        PomodoroSession[]
+  subscriptions   Subscription[]
+
+  @@map("users")
+}
+
+model Subject {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  name             String
+  color            String
+  icon             String?
+  weeklyGoalMinutes Int?    @map("weekly_goal_minutes")
+  archived         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions PomodoroSession[]
+
+  @@index([userId])
+  @@map("subjects")
+}
+
+model PomodoroSession {
+  id             String      @id @default(uuid())
+  userId         String      @map("user_id")
+  subjectId      String?     @map("subject_id")
+  durationSeconds Int        @map("duration_seconds")
+  type           SessionType
+  completed      Boolean     @default(false)
+  startedAt      DateTime    @map("started_at")
+  finishedAt     DateTime?   @map("finished_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subjectId])
+  @@index([userId, startedAt])
+  @@map("pomodoro_sessions")
+}
+
+model Subscription {
+  id                      String              @id @default(uuid())
+  userId                  String              @map("user_id")
+  status                  SubscriptionStatus
+  plan                    Plan
+  mercadoPagoSubscriptionId String?           @unique @map("mercado_pago_subscription_id")
+  startDate               DateTime            @map("start_date")
+  endDate                 DateTime?           @map("end_date")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
