@@ -23,6 +23,11 @@ const envSchema = z.object({
 
   MERCADO_PAGO_ACCESS_TOKEN: z.string(),
   MERCADO_PAGO_WEBHOOK_SECRET: z.string(),
+  MERCADO_PAGO_BACK_URL: z
+    .string()
+    .default('http://localhost:5173/subscription/callback'),
+  PREMIUM_PLAN_PRICE: z.coerce.number().positive().default(19.9),
+  PREMIUM_PLAN_CURRENCY: z.string().default('BRL'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 });
