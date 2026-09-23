@@ -24,6 +24,11 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -108,6 +113,7 @@ model Subscription {
   userId                  String              @map("user_id")
   status                  SubscriptionStatus
   plan                    Plan
+  billingCycle            BillingCycle        @default(MONTHLY) @map("billing_cycle")
   mercadoPagoSubscriptionId String?           @unique @map("mercado_pago_subscription_id")
   startDate               DateTime            @map("start_date")
   endDate                 DateTime?           @map("end_date")

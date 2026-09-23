@@ -26,7 +26,8 @@ const envSchema = z.object({
   MERCADO_PAGO_BACK_URL: z
     .string()
     .default('http://localhost:5173/subscription/callback'),
-  PREMIUM_PLAN_PRICE: z.coerce.number().positive().default(19.9),
+  PREMIUM_MONTHLY_PRICE: z.coerce.number().positive().default(14.9),
+  PREMIUM_YEARLY_PRICE: z.coerce.number().positive().default(119.9),
   PREMIUM_PLAN_CURRENCY: z.string().default('BRL'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),

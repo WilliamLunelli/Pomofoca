@@ -21,6 +21,10 @@ jest.mock('../../src/modules/subscriptions/mercadoPago.client', () => ({
   cancelPreapproval: jest.fn(),
   getPreapproval: jest.fn(),
   verifyWebhookSignature: jest.fn(),
+  billingCycleFromPreapproval: jest.fn(
+    (preapproval: { auto_recurring?: { frequency: number } }) =>
+      preapproval.auto_recurring?.frequency === 12 ? 'YEARLY' : 'MONTHLY',
+  ),
 }));
 
 import * as mercadoPago from '../../src/modules/subscriptions/mercadoPago.client';
@@ -47,15 +51,38 @@ describe('subscriptions.service - createCheckout', () => {
       init_point: 'https://mercadopago.com/checkout/preapproval-1',
     });
 
-    const result = await subscriptionsService.createCheckout('user-1');
+    const result = await subscriptionsService.createCheckout('user-1', 'MONTHLY');
 
     expect(mockedMp.createPreapproval).toHaveBeenCalledWith({
       userId: 'user-1',
       payerEmail: 'ada@example.com',
+      billingCycle: 'MONTHLY',
     });
     expect(result).toEqual({
       checkoutUrl: 'https://mercadopago.com/checkout/preapproval-1',
       preapprovalId: 'preapproval-1',
+    });
+  });
+
+  it('creates a yearly preapproval when requested', async () => {
+    userMock.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'ada@example.com',
+      plan: 'FREE',
+    });
+    mockedMp.createPreapproval.mockResolvedValueOnce({
+      id: 'preapproval-2',
+      status: 'pending',
+      external_reference: 'user-1',
+      init_point: 'https://mercadopago.com/checkout/preapproval-2',
+    });
+
+    await subscriptionsService.createCheckout('user-1', 'YEARLY');
+
+    expect(mockedMp.createPreapproval).toHaveBeenCalledWith({
+      userId: 'user-1',
+      payerEmail: 'ada@example.com',
+      billingCycle: 'YEARLY',
     });
   });
 
@@ -66,9 +93,9 @@ describe('subscriptions.service - createCheckout', () => {
       plan: 'PREMIUM',
     });
 
-    await expect(subscriptionsService.createCheckout('user-1')).rejects.toMatchObject<
-      Partial<AppError>
-    >({ code: ERROR_CODES.CONFLICT });
+    await expect(
+      subscriptionsService.createCheckout('user-1', 'MONTHLY'),
+    ).rejects.toMatchObject<Partial<AppError>>({ code: ERROR_CODES.CONFLICT });
     expect(mockedMp.createPreapproval).not.toHaveBeenCalled();
   });
 });
@@ -127,6 +154,11 @@ describe('subscriptions.service - handleWebhook', () => {
       id: 'preapproval-1',
       status: 'authorized',
       external_reference: 'user-1',
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: 'months',
+        transaction_amount: 14.9,
+      },
     });
 
     await subscriptionsService.handleWebhook(
@@ -141,6 +173,7 @@ describe('subscriptions.service - handleWebhook', () => {
           userId: 'user-1',
           status: 'ACTIVE',
           plan: 'PREMIUM',
+          billingCycle: 'MONTHLY',
         }),
         update: expect.objectContaining({ status: 'ACTIVE' }),
       }),
@@ -149,6 +182,31 @@ describe('subscriptions.service - handleWebhook', () => {
       where: { id: 'user-1' },
       data: { plan: 'PREMIUM' },
     });
+  });
+
+  it('records a yearly billing cycle when the preapproval frequency is 12 months', async () => {
+    mockedMp.verifyWebhookSignature.mockReturnValueOnce(true);
+    mockedMp.getPreapproval.mockResolvedValueOnce({
+      id: 'preapproval-3',
+      status: 'authorized',
+      external_reference: 'user-1',
+      auto_recurring: {
+        frequency: 12,
+        frequency_type: 'months',
+        transaction_amount: 119.9,
+      },
+    });
+
+    await subscriptionsService.handleWebhook(
+      { type: 'preapproval', data: { id: 'preapproval-3' } },
+      { xSignature: 'good', xRequestId: 'req-1' },
+    );
+
+    expect(subscriptionMock.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ billingCycle: 'YEARLY' }),
+      }),
+    );
   });
 
   it('downgrades the user when the preapproval is cancelled', async () => {

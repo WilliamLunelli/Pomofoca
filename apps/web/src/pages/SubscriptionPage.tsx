@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api';
-import type { Subscription } from '@/lib/types';
+import type { BillingCycle, Subscription } from '@/lib/types';
 
 const FREE_FEATURES = [
   'Timer pomodoro ilimitado',
@@ -19,9 +19,24 @@ const PREMIUM_FEATURES = [
   'Exportação de relatórios',
 ];
 
+const MONTHLY_PRICE = 14.9;
+const YEARLY_PRICE = 119.9;
+const YEARLY_MONTHLY_EQUIVALENT = YEARLY_PRICE / 12;
+const YEARLY_DISCOUNT_PERCENT = Math.round(
+  (1 - YEARLY_MONTHLY_EQUIVALENT / MONTHLY_PRICE) * 100,
+);
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function SubscriptionPage() {
   const { user, refreshUser } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('YEARLY');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +53,9 @@ export function SubscriptionPage() {
     try {
       const result = await api.post<{ checkoutUrl: string | null }>(
         '/subscriptions/checkout',
+        {
+          billingCycle,
+        },
       );
       if (result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
@@ -70,6 +88,8 @@ export function SubscriptionPage() {
   }
 
   const isPremium = user?.plan === 'PREMIUM';
+  const price = billingCycle === 'YEARLY' ? YEARLY_PRICE : MONTHLY_PRICE;
+  const priceSuffix = billingCycle === 'YEARLY' ? '/ano' : '/mês';
 
   return (
     <div className="p-6 md:p-8">
@@ -77,10 +97,46 @@ export function SubscriptionPage() {
         <h3 className="mb-3 max-w-[22ch] text-2xl">
           Seu histórico completo custa menos que um café.
         </h3>
-        <p className="mb-8 max-w-[50ch] text-sm text-muted">
+        <p className="mb-6 max-w-[50ch] text-sm text-muted">
           O timer é grátis para sempre. O Premium guarda cada sessão desde o primeiro dia
           — é o que faz o relatório valer.
         </p>
+
+        {!isPremium && (
+          <div className="mb-8 inline-flex rounded-sm border border-divider p-0.5">
+            <button
+              onClick={() => setBillingCycle('MONTHLY')}
+              className="rounded-sm px-3 py-1.5 text-xs transition-colors"
+              style={{
+                background:
+                  billingCycle === 'MONTHLY' ? 'var(--color-accent-100)' : 'transparent',
+                color:
+                  billingCycle === 'MONTHLY'
+                    ? 'var(--color-accent-700)'
+                    : 'var(--f-muted)',
+              }}
+            >
+              Mensal
+            </button>
+            <button
+              onClick={() => setBillingCycle('YEARLY')}
+              className="flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs transition-colors"
+              style={{
+                background:
+                  billingCycle === 'YEARLY' ? 'var(--color-accent-100)' : 'transparent',
+                color:
+                  billingCycle === 'YEARLY'
+                    ? 'var(--color-accent-700)'
+                    : 'var(--f-muted)',
+              }}
+            >
+              Anual
+              <span className="tag tag-accent text-[9px]">
+                -{YEARLY_DISCOUNT_PERCENT}%
+              </span>
+            </button>
+          </div>
+        )}
 
         {error && <p className="mb-6 text-sm text-cta">{error}</p>}
 
@@ -121,10 +177,17 @@ export function SubscriptionPage() {
             </div>
             <div className="flex items-baseline gap-1">
               <span className="font-heading text-3xl tabular-nums tracking-tight">
-                R$19,90
+                R${formatBRL(isPremium ? MONTHLY_PRICE : price)}
               </span>
-              <span className="text-xs text-muted">/mês</span>
+              <span className="text-xs text-muted">
+                {isPremium ? '/mês' : priceSuffix}
+              </span>
             </div>
+            {!isPremium && billingCycle === 'YEARLY' && (
+              <div className="text-xs text-ok">
+                equivalente a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês
+              </div>
+            )}
             <div className="text-xs text-muted">
               Cobrado via Mercado Pago · cartão ou PIX
             </div>
@@ -159,8 +222,9 @@ export function SubscriptionPage() {
 
         {subscription && (
           <p className="mb-6 text-xs text-muted">
-            Status da assinatura: {subscription.status} · desde{' '}
-            {new Date(subscription.startDate).toLocaleDateString('pt-BR')}
+            Status da assinatura: {subscription.status} ·{' '}
+            {subscription.billingCycle === 'YEARLY' ? 'plano anual' : 'plano mensal'} ·
+            desde {new Date(subscription.startDate).toLocaleDateString('pt-BR')}
           </p>
         )}
 

@@ -5,12 +5,39 @@ import { env } from '../../config/env';
 const MP_API_BASE = 'https://api.mercadopago.com';
 
 export type PreapprovalStatus = 'pending' | 'authorized' | 'paused' | 'cancelled';
+export type BillingCycle = 'MONTHLY' | 'YEARLY';
 
 export interface Preapproval {
   id: string;
   status: PreapprovalStatus;
   external_reference: string;
   init_point?: string;
+  auto_recurring?: {
+    frequency: number;
+    frequency_type: 'months' | 'days';
+    transaction_amount: number;
+  };
+}
+
+const BILLING_CYCLE_CONFIG: Record<
+  BillingCycle,
+  { frequency: number; frequencyType: 'months'; price: () => number }
+> = {
+  MONTHLY: {
+    frequency: 1,
+    frequencyType: 'months',
+    price: () => env.PREMIUM_MONTHLY_PRICE,
+  },
+  YEARLY: {
+    frequency: 12,
+    frequencyType: 'months',
+    price: () => env.PREMIUM_YEARLY_PRICE,
+  },
+};
+
+/** Deriva o ciclo de cobranca a partir do auto_recurring devolvido pelo Mercado Pago. */
+export function billingCycleFromPreapproval(preapproval: Preapproval): BillingCycle {
+  return preapproval.auto_recurring?.frequency === 12 ? 'YEARLY' : 'MONTHLY';
 }
 
 async function mpFetch(path: string, init: RequestInit): Promise<Preapproval> {
@@ -39,19 +66,24 @@ async function mpFetch(path: string, init: RequestInit): Promise<Preapproval> {
 export function createPreapproval(params: {
   userId: string;
   payerEmail: string;
+  billingCycle: BillingCycle;
 }): Promise<Preapproval> {
+  const cycle = BILLING_CYCLE_CONFIG[params.billingCycle];
   return mpFetch('/preapproval', {
     method: 'POST',
     body: JSON.stringify({
-      reason: 'Assinatura Pomofoca Premium',
+      reason:
+        params.billingCycle === 'YEARLY'
+          ? 'Assinatura Pomofoca Premium (anual)'
+          : 'Assinatura Pomofoca Premium (mensal)',
       external_reference: params.userId,
       payer_email: params.payerEmail,
       back_url: env.MERCADO_PAGO_BACK_URL,
       status: 'pending',
       auto_recurring: {
-        frequency: 1,
-        frequency_type: 'months',
-        transaction_amount: env.PREMIUM_PLAN_PRICE,
+        frequency: cycle.frequency,
+        frequency_type: cycle.frequencyType,
+        transaction_amount: cycle.price(),
         currency_id: env.PREMIUM_PLAN_CURRENCY,
       },
     }),

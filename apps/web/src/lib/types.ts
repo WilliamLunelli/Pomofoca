@@ -99,11 +99,14 @@ export interface ReportCompare {
   changePercentage: number;
 }
 
+export type BillingCycle = 'MONTHLY' | 'YEARLY';
+
 export interface Subscription {
   id: string;
   userId: string;
   status: 'ACTIVE' | 'CANCELED' | 'PAST_DUE';
   plan: Plan;
+  billingCycle: BillingCycle;
   mercadoPagoSubscriptionId: string | null;
   startDate: string;
   endDate: string | null;

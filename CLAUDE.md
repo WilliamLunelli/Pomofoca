@@ -256,13 +256,23 @@ integração via Jest/Supertest.
   período, então não usa o middleware de bloqueio — em vez disso auto-limita sua
   própria janela de cálculo à última semana quando `plan === FREE`
   (`scope: 'week'` na resposta avisa o frontend disso)
-- **subscriptions** — `POST /subscriptions/checkout` cria a assinatura recorrente
-  (preapproval) no Mercado Pago e devolve o link de checkout; **não grava nada no
-  banco até o webhook confirmar** `authorized` (evita registrar assinatura que nunca
-  foi paga). `POST /subscriptions/cancel` cancela no Mercado Pago e localmente.
-  `POST /subscriptions/webhooks/mercado-pago` fica fora do `authMiddleware` (evento
-  vem do servidor do Mercado Pago) e é protegido por validação de assinatura +
-  `webhookRateLimit`
+- **subscriptions** — `POST /subscriptions/checkout` recebe `{ billingCycle: 'MONTHLY'
+  | 'YEARLY' }` (default `MONTHLY`) e cria a assinatura recorrente (preapproval) no
+  Mercado Pago com o preço correspondente; devolve o link de checkout. **Não grava
+  nada no banco até o webhook confirmar** `authorized` (evita registrar assinatura
+  que nunca foi paga). `POST /subscriptions/cancel` cancela no Mercado Pago e
+  localmente. `POST /subscriptions/webhooks/mercado-pago` fica fora do
+  `authMiddleware` (evento vem do servidor do Mercado Pago) e é protegido por
+  validação de assinatura + `webhookRateLimit`. O `billingCycle` da assinatura é
+  persistido em `Subscription` (derivado de `auto_recurring.frequency` do preapproval
+  — `frequency: 12` meses = anual) para o frontend exibir sem precisar consultar o
+  Mercado Pago de novo
+
+**Preço do Premium** (`PREMIUM_MONTHLY_PRICE`/`PREMIUM_YEARLY_PRICE` em `.env`,
+validado com o dono do produto): R$14,90/mês ou R$119,90/ano (equivalente a
+R$9,99/mês, ~33% de desconto — incentivo deliberado para o plano anual, melhor para
+fluxo de caixa e retenção). O frontend (`SubscriptionPage.tsx`) tem um toggle
+mensal/anual, padrão em anual.
 
 `shared/utils/period.ts` centraliza a resolução de período (`today`/`week`/`month`/
 `year`/`all` como janelas rolantes ancoradas em "agora", sempre em UTC) — usado tanto
@@ -299,12 +309,18 @@ frontend completo (todas as telas do MVP conectadas à API real), ambos validado
   navegador antes de considerar o MVP pronto para uso real.
 - Repositório git em https://github.com/WilliamLunelli/Pomofoca (branch `main`)
 
-Pendente / não implementado neste MVP:
-1. Exportação de relatório em PDF (mencionada no produto original; fila BullMQ já
-   está esqueletizada em `jobs/queues/reports.queue.ts` e
-   `jobs/workers/reports.worker.ts`, mas o processamento real não foi escrito)
-2. E-mails/notificações (fila e worker esqueletizados, sem lógica)
-3. Swagger/OpenAPI (dependências já instaladas, não conectadas)
+Pendente / não implementado neste MVP — ordem de prioridade combinada com o dono do
+produto para a próxima leva:
+1. **Swagger/OpenAPI** — documentar o que já existe custa pouco e evita perder o
+   controle da API conforme ela cresce (dependências já instaladas, não conectadas)
+2. **Notificações** — streak em risco é o caso de uso prioritário (recurso de
+   retenção); fila e worker já esqueletizados em `jobs/queues/notifications.queue.ts`
+   / `jobs/workers/notifications.worker.ts`, sem lógica ainda
+3. **Exportação de relatório em PDF** — é o que menos bloqueia uso real do produto
+   agora, fica por último; fila BullMQ já esqueletizada em
+   `jobs/queues/reports.queue.ts` / `jobs/workers/reports.worker.ts`
+
+Outras pendências, sem ordem definida ainda:
 4. OAuth Google testado de ponta a ponta (código implementado, mas nunca testado
    contra credenciais reais do Google)
 5. Teste manual no navegador do frontend completo (ver nota acima)

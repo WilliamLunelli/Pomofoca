@@ -9,7 +9,7 @@ import {
   checkoutHandler,
   getCurrentHandler,
 } from './subscriptions.controller';
-import { mercadoPagoWebhookSchema } from './subscriptions.schema';
+import { createCheckoutSchema, mercadoPagoWebhookSchema } from './subscriptions.schema';
 import { mercadoPagoWebhookHandler } from './webhooks.controller';
 
 const router = Router();
@@ -24,7 +24,7 @@ router.post(
 router.use(authMiddleware);
 
 router.get('/', asyncHandler(getCurrentHandler));
-router.post('/checkout', asyncHandler(checkoutHandler));
+router.post('/checkout', validate(createCheckoutSchema), asyncHandler(checkoutHandler));
 router.post('/cancel', asyncHandler(cancelHandler));
 
 export { router as subscriptionsRoutes };

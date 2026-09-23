@@ -5,7 +5,7 @@ import { logger } from '../../config/logger';
 import { AppError } from '../../shared/errors/AppError';
 import { ERROR_CODES } from '../../shared/errors/errorCodes';
 import * as mercadoPago from './mercadoPago.client';
-import type { PreapprovalStatus } from './mercadoPago.client';
+import type { BillingCycle, PreapprovalStatus } from './mercadoPago.client';
 import type { MercadoPagoWebhookInput } from './subscriptions.schema';
 
 export async function getCurrentSubscription(userId: string) {
@@ -15,7 +15,7 @@ export async function getCurrentSubscription(userId: string) {
   });
 }
 
-export async function createCheckout(userId: string) {
+export async function createCheckout(userId: string, billingCycle: BillingCycle) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new AppError(ERROR_CODES.NOT_FOUND, 'User not found', 404);
@@ -31,6 +31,7 @@ export async function createCheckout(userId: string) {
   const preapproval = await mercadoPago.createPreapproval({
     userId,
     payerEmail: user.email,
+    billingCycle,
   });
 
   return {
@@ -113,6 +114,7 @@ export async function handleWebhook(
   }
 
   const userId = preapproval.external_reference;
+  const billingCycle = mercadoPago.billingCycleFromPreapproval(preapproval);
 
   await prisma.$transaction([
     prisma.subscription.upsert({
@@ -121,6 +123,7 @@ export async function handleWebhook(
         userId,
         status: mapped.subscriptionStatus,
         plan: PLAN.PREMIUM,
+        billingCycle,
         mercadoPagoSubscriptionId: preapproval.id,
         startDate: new Date(),
         endDate: mapped.subscriptionStatus === 'CANCELED' ? new Date() : null,

@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const createCheckoutSchema = z.object({
+  billingCycle: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'),
+});
+export type CreateCheckoutInput = z.infer<typeof createCheckoutSchema>;
+
 export const mercadoPagoWebhookSchema = z
   .object({
     type: z.string().optional(),
