@@ -184,10 +184,32 @@ apps/api/src/
 { "success": false, "error": { "code": "SUBJECT_LIMIT_REACHED", "message": "..." } }
 ```
 
+## Como rodar localmente
+
+1. `docker compose up -d postgres redis`
+2. Confirme que existe um `.env` na raiz (copie de `.env.example` se não existir) —
+   repare que `DATABASE_URL` aponta pra porta **5433**, não 5432 (ver nota de
+   ambiente Windows mais abaixo)
+3. `npm install` na raiz (instala todos os workspaces)
+4. `npm run prisma:migrate --workspace=apps/api` — aplica migrations pendentes.
+   **Não rode `npx prisma migrate dev` direto dentro de `apps/api`**: o Prisma CLI
+   não usa o `dotenv` custom do `config/env.ts` (que só roda em tempo de execução da
+   app) e não acha `DATABASE_URL` porque o `.env` real está na raiz, não em
+   `apps/api`. Os scripts `prisma:generate`/`prisma:migrate`/`prisma:studio` do
+   `package.json` já usam `dotenv-cli` (`dotenv -e ../../.env -- prisma ...`)
+   exatamente pra resolver isso — sempre use os scripts do `npm run`, não o `prisma`
+   direto
+5. `npm run dev:api` (porta 3333) e `npm run dev:web` (porta 5173, com proxy `/api`
+   já configurado no Vite) em dois terminais
+6. Abra `http://localhost:5173` — crie uma conta pela tela de registro
+
+Testes do backend: `npm run test --workspace=apps/api`.
+
 ## Modelo de dados (Prisma)
 
-Definido em `apps/api/prisma/schema.prisma`, ainda **sem migration gerada**
-(aguardando `DATABASE_URL` real e primeira `npm install`/`prisma migrate dev`).
+Definido em `apps/api/prisma/schema.prisma`. Migrations em
+`apps/api/prisma/migrations/`, geradas e aplicadas via `npm run prisma:migrate
+--workspace=apps/api` (ver "Como rodar localmente" acima).
 
 - **User** — email, name, passwordHash (nullable — permite conta só-Google), googleId
   (nullable), `plan` (denormalizado: fonte rápida de verdade para o

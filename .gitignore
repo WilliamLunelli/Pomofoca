@@ -12,3 +12,4 @@ coverage/
 # Notas pessoais de planejamento - nao publicar no repo
 design-tokens-pomofoca.md
 prompt-dev-backend-fococa.md
+prompt-deploy-cicd-pomofoca.md
