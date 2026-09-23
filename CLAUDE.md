@@ -26,8 +26,7 @@ dev único no momento):
 pomofoca/
 ├── apps/
 │   ├── api/       # backend Node + Express (implementado)
-│   └── web/       # frontend PWA (stack ainda não definida — não criar nada aqui
-│                    sem alinhar antes: framework, biblioteca de gráficos, etc.)
+│   └── web/       # frontend PWA (implementado — React + Vite)
 ├── packages/
 │   └── shared/    # tipos e schemas Zod compartilhados entre api e web
 ├── docker-compose.yml
@@ -59,8 +58,84 @@ Bibliotecas de apoio: `helmet`, `cors`, `express-rate-limit`, `pino`/`pino-http`
 
 ## Stack — Frontend (apps/web)
 
-Ainda não definida. Não gerar código em `apps/web` sem alinhar antes framework
-(React/Vite vs Next.js), biblioteca de gráficos para os relatórios, etc.
+- React 18 + Vite + TypeScript, `vite-plugin-pwa` (instalável, funciona offline via
+  service worker gerado no build)
+- Tailwind, configurado para ler os design tokens como CSS custom properties (não
+  como valores Tailwind fixos) — ver `src/styles/tokens.css` e `tailwind.config.ts`.
+  Fonte de verdade visual: `design-tokens-pomofoca.md` (arquivo local, fora do git —
+  ver seção "Notas pessoais" abaixo)
+- Recharts para pizza (breakdown por matéria) e barras (evolução diária); o heatmap
+  anual é um grid customizado com CSS (não é gráfico de biblioteca), replicando a
+  técnica do protótipo
+- `@phosphor-icons/react` para ícones (mesma lib do protótipo)
+- `react-router-dom` para rotas
+- Sem gerenciador de estado global de servidor (react-query etc.) por enquanto —
+  hooks simples (`useState`/`useEffect`) em `src/hooks/`; considerar react-query se a
+  quantidade de fetches ficar difícil de coordenar
+
+### Personalização (`src/context/PreferencesContext.tsx`)
+
+- Tema claro/escuro (`data-theme` na raiz)
+- Cor de destaque escolhível: `src/lib/color.ts` implementa conversão sRGB↔OKLCH e
+  `generateRamp(hex)`, que gera a rampa 100-900 preservando hue/chroma da cor
+  escolhida (mesma lógica do protótipo, seção D do arquivo de tokens) — usado tanto
+  pela cor de destaque do app quanto poderia ser reaproveitado para cores de matéria
+- Densidade (`comfortable`/`compact`, via `data-density`) e tamanho de fonte (3
+  níveis, via `data-font-size`) — ambos definidos como overrides de custom properties
+  em `tokens.css`
+- Tudo persistido em `localStorage`, nada no backend (preferência é só do
+  dispositivo/navegador atual)
+
+### Estrutura (`apps/web/src/`)
+
+```
+src/
+├── components/AppShell.tsx      # sidebar (desktop) + nav inferior (mobile)
+├── context/
+│   ├── AuthContext.tsx          # usuário logado, login/register/logout, refresh
+│   └── PreferencesContext.tsx   # tema, cor de destaque, densidade, fonte
+├── hooks/
+│   ├── useSubjects.ts
+│   └── usePomodoroSettings.ts   # duração dos ciclos - só local, não é campo do backend
+├── lib/
+│   ├── api.ts                   # fetch wrapper com refresh automático de token
+│   ├── color.ts                 # OKLCH + generateRamp + paletas curadas
+│   └── types.ts                 # tipos das respostas da API (não vieram de
+│                                    packages/shared ainda - ver nota abaixo)
+├── pages/                       # Timer, Subjects, Reports, Settings, Subscription,
+│                                    Login, Register
+├── styles/tokens.css            # design tokens como CSS custom properties
+├── App.tsx                      # rotas (react-router)
+└── main.tsx
+```
+
+**Nota de arquitetura pendente:** os tipos de resposta da API (`src/lib/types.ts`)
+foram definidos localmente em `apps/web` por velocidade, em vez de irem para
+`packages/shared` como a convenção original pedia ("tipos usados por mais de um app
+vivem em shared"). `Plan` e `SessionType` já vêm de `packages/shared` corretamente.
+Mover `Subject`/`PomodoroSession`/etc. para `packages/shared` é um refactor futuro de
+baixo risco, não urgente.
+
+### Timer (`src/pages/TimerPage.tsx`)
+
+O timer roda inteiramente no cliente (sem estado de timer no servidor). Ao completar
+ou pular um ciclo, a página faz `POST /api/sessions` com o registro completo
+(duração real decorrida, `completed: true/false`). Ciclos de pausa nunca carregam
+`subjectId`. As durações (foco/pausa curta/pausa longa/ciclos até pausa longa) ficam
+em `usePomodoroSettings`, só local (o backend não tem esse conceito — é preferência
+de uso, não dado de estudo).
+
+### Ambiente Windows: bug de dependências opcionais do npm
+
+Se `npm run dev:web` falhar com `Cannot find module @rollup/rollup-win32-x64-msvc`,
+é o bug conhecido do npm com optional dependencies
+(https://github.com/npm/cli/issues/4828), **agravado neste ambiente** porque o
+`.npmrc` global do usuário (`C:\Users\<user>\.npmrc`) tem `os = "linux"` fixado
+(provavelmente para uso via WSL em outros projetos). Isso faz o npm baixar os
+binários nativos do Rollup para Linux em vez de Windows. Correção **sem tocar no
+`.npmrc` global**: `npm install --os=win32 --cpu=x64` na raiz do monorepo. Não altere
+o `.npmrc` do usuário sem perguntar - o `os=linux` pode ser intencional para o fluxo
+de trabalho dele em outros projetos.
 
 ## Estrutura do backend (apps/api)
 
@@ -125,10 +200,23 @@ Definido em `apps/api/prisma/schema.prisma`, ainda **sem migration gerada**
   histórico se a matéria for apagada)
 - **Subscription** — histórico de assinaturas (não é 1:1 com User), status
   (ACTIVE/CANCELED/PAST_DUE), `mercadoPagoSubscriptionId`
+- **DailyStudyStat** — agregado diário por usuário (`@@unique([userId, date])`),
+  atualizado incrementalmente (upsert) toda vez que uma `PomodoroSession` é criada ou
+  apagada, na mesma transação. Campos: `totalSeconds` (todas as sessões, incluindo
+  pausas), `focusSeconds`/`sessionsCompleted`/`sessionsInterrupted` (só sessões
+  FOCUS), `bySubject` (JSON: `{ [subjectId | "none"]: { seconds, completed } }`). O
+  módulo `reports` **sempre** lê daqui, nunca recalcula em cima de
+  `PomodoroSession` diretamente — mantém as consultas rápidas independente do
+  tamanho do histórico. `date` é a data em UTC derivada de `startedAt` da sessão
+  (**sem timezone por usuário ainda** — `timezone` em User foi adiado, ver acima;
+  isso significa que o "dia" de uma sessão pode não bater com o dia local do usuário
+  perto da meia-noite, dependendo do fuso dele)
 
-Sem soft-delete em nenhuma tabela (hard delete com cascade). Sem campos extras em
-User por enquanto (`emailVerified`, `avatarUrl`, `timezone` foram considerados e
-adiados até algum fluxo depender deles).
+Sem soft-delete em nenhuma tabela (hard delete com cascade), exceto `Subject`, que
+usa `archived` (soft) porque precisa preservar o histórico de sessões antigas mesmo
+depois que o usuário "remove" a matéria. Sem campos extras em User por enquanto
+(`emailVerified`, `avatarUrl`, `timezone` foram considerados e adiados até algum
+fluxo depender deles).
 
 ## Segurança
 
@@ -138,31 +226,94 @@ adiados até algum fluxo depender deles).
   `JWT_REFRESH_EXPIRES_IN`; a cada `refresh` o token antigo é revogado e um novo par é
   emitido (rotação). Isso permite revogar sessões individualmente sem precisar de
   blacklist.
-- Webhook do Mercado Pago deve validar a assinatura da requisição antes de processar
-  (ainda não implementado — pendente junto do módulo `subscriptions`)
+- Webhook do Mercado Pago valida a assinatura (HMAC-SHA256 sobre
+  `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, formato documentado pelo
+  Mercado Pago) antes de processar qualquer evento — ver
+  `apps/api/src/modules/subscriptions/mercadoPago.client.ts`
+
+## Módulos do backend (apps/api/src/modules/)
+
+Todos seguem o padrão do `auth` (controller só orquestra, service tem a lógica,
+schema Zod valida, routes aplica os middlewares). Todos com testes unitários +
+integração via Jest/Supertest.
+
+- **auth** — registro, login, refresh (com rotação via Redis), logout, OAuth Google
+- **users** — `GET/PATCH /users/me` (perfil; só nome editável por enquanto)
+- **subjects** — CRUD de matérias + archive/restore.
+  `middlewares/plan.middleware.ts::enforceSubjectLimit` bloqueia (403
+  `SUBJECT_LIMIT_REACHED`) a 4ª matéria ativa no plano FREE
+- **sessions** — cliente loga a sessão já finalizada (`POST /sessions` com
+  `startedAt`/`finishedAt`/`completed`), sem estado de timer no servidor. Cada
+  create/delete atualiza `DailyStudyStat` na mesma transação (ver
+  `reports.service.ts::recordCompletedSession`/`reverseCompletedSession`)
+- **reports** — `summary`, `breakdown`, `heatmap`, `trend`, `streak`, `compare`,
+  todos lendo de `DailyStudyStat`. `plan.middleware.ts::enforceReportHistoryLimit`
+  bloqueia (403 `REPORT_HISTORY_LIMIT_REACHED`) período/`from` além dos últimos 7
+  dias para FREE; `requirePremium(...)` bloqueia `heatmap` e `compare` por completo
+  para FREE (403 `PREMIUM_FEATURE_REQUIRED`) — heatmap porque já era feature paga
+  na definição original do produto, compare porque sua janela "anterior"
+  inevitavelmente extrapola os 7 dias permitidos. `streak` não tem query params de
+  período, então não usa o middleware de bloqueio — em vez disso auto-limita sua
+  própria janela de cálculo à última semana quando `plan === FREE`
+  (`scope: 'week'` na resposta avisa o frontend disso)
+- **subscriptions** — `POST /subscriptions/checkout` cria a assinatura recorrente
+  (preapproval) no Mercado Pago e devolve o link de checkout; **não grava nada no
+  banco até o webhook confirmar** `authorized` (evita registrar assinatura que nunca
+  foi paga). `POST /subscriptions/cancel` cancela no Mercado Pago e localmente.
+  `POST /subscriptions/webhooks/mercado-pago` fica fora do `authMiddleware` (evento
+  vem do servidor do Mercado Pago) e é protegido por validação de assinatura +
+  `webhookRateLimit`
+
+`shared/utils/period.ts` centraliza a resolução de período (`today`/`week`/`month`/
+`year`/`all` como janelas rolantes ancoradas em "agora", sempre em UTC) — usado tanto
+por `reports.service.ts` quanto por `plan.middleware.ts`.
+
+## Frontend (apps/web) — ver seção "Stack — Frontend" acima para detalhes
+
+Rotas implementadas: `/login`, `/register`, `/timer`, `/subjects`, `/reports`,
+`/settings`, `/subscription`. Todas as rotas protegidas exigem usuário logado
+(`AuthContext`); token de acesso é renovado automaticamente em qualquer 401 via
+`src/lib/api.ts`.
 
 ## Estado atual / progresso
 
-Feito:
-1. Estrutura do monorepo (`apps/api`, `apps/web` vazio, `packages/shared`) com npm
-   workspaces
-2. `docker-compose.yml` (postgres, redis, api, worker-reports, worker-notifications)
-   + `.env.example`
-3. Arquivos base do backend (`app.ts`, `server.ts`, `config/*`)
-4. `schema.prisma` com o rascunho revisado (User, Subject, PomodoroSession,
-   Subscription) — decisões já validadas com o dono do projeto. Migration `init`
-   gerada e aplicada.
-5. Módulo `auth` completo: registro, login, refresh (com rotação), logout, OAuth
-   Google — serve de padrão de referência para os próximos módulos. Testes unitários
-   (`tests/unit/auth.service.test.ts`) e de integração
-   (`tests/integration/auth.routes.test.ts`) com Jest + Supertest — **8/8 passando**.
-6. Validação end-to-end contra Postgres/Redis reais via docker-compose: registro,
-   login, refresh com rotação (reuso do token antigo é corretamente rejeitado) e
-   login inválido testados manualmente com a API rodando (`npm run dev:api`).
-7. Repositório git inicializado e publicado em
-   https://github.com/WilliamLunelli/Pomofoca (branch `main`).
+Feito — backend completo (auth, users, subjects, sessions, reports, subscriptions),
+frontend completo (todas as telas do MVP conectadas à API real), ambos validados:
 
-Notas de ambiente descobertas durante a validação:
+- Testes automatizados: suite completa do backend em **73/73** passando
+  (`npm run test --workspace=apps/api`)
+- Backend validado manualmente ponta a ponta contra Postgres/Redis reais (docker
+  compose) em cada módulo: auth (registro/login/refresh com rotação), subjects
+  (limite do plano FREE), sessions (sessão livre/vinculada, checagem de propriedade
+  cruzada entre usuários), reports (summary/breakdown/streak, bloqueio de
+  heatmap/period para FREE, reversão do agregado ao deletar sessão), subscriptions
+  (checkout falha graciosamente com credenciais de teste falsas, sem derrubar o
+  servidor — **nunca testado contra a API real do Mercado Pago**, pendente de
+  credenciais de sandbox reais)
+- Frontend: `tsc -b` limpo, `npm run build --workspace=apps/web` gera o bundle +
+  service worker do PWA sem erros, `eslint` limpo (só 2 avisos aceitáveis de
+  `react-refresh` em arquivos que exportam hook+provider juntos). **Não foi testado
+  em um navegador real** (sem ferramenta de automação de browser neste ambiente) —
+  a validação foi: type-check, build de produção, lint, e inspeção manual de cada
+  tela contra a referência visual do protótipo. Recomendo um teste manual no
+  navegador antes de considerar o MVP pronto para uso real.
+- Repositório git em https://github.com/WilliamLunelli/Pomofoca (branch `main`)
+
+Pendente / não implementado neste MVP:
+1. Exportação de relatório em PDF (mencionada no produto original; fila BullMQ já
+   está esqueletizada em `jobs/queues/reports.queue.ts` e
+   `jobs/workers/reports.worker.ts`, mas o processamento real não foi escrito)
+2. E-mails/notificações (fila e worker esqueletizados, sem lógica)
+3. Swagger/OpenAPI (dependências já instaladas, não conectadas)
+4. OAuth Google testado de ponta a ponta (código implementado, mas nunca testado
+   contra credenciais reais do Google)
+5. Teste manual no navegador do frontend completo (ver nota acima)
+6. Mover tipos de `apps/web/src/lib/types.ts` para `packages/shared` (ver nota na
+   seção de frontend)
+7. `timezone` por usuário (relatórios usam UTC puro por enquanto)
+
+## Notas de ambiente (Windows) descobertas durante o desenvolvimento
+
 - `config/env.ts` carrega o `.env` da raiz do monorepo explicitamente via `dotenv`
   (necessário porque `npm run --workspace` roda com `cwd` no próprio workspace, não
   na raiz).
@@ -175,19 +326,21 @@ Notas de ambiente descobertas durante a validação:
 - `expiresIn` do `jsonwebtoken` recebe segundos (via `parseDurationToSeconds`) em vez
   da string bruta (`"15m"`), para compatibilidade com a tipagem atual de
   `@types/jsonwebtoken`.
-
-Pendente (ordem combinada — só avançar depois que o módulo anterior for validado):
-1. Implementar `subjects` seguindo o mesmo padrão do `auth`
-2. Implementar `sessions`
-3. Implementar `reports` (geração pesada sempre via fila BullMQ, nunca síncrona)
-4. Implementar `subscriptions` (integração Mercado Pago + webhook)
-5. Só então definir e começar `apps/web`
+- Processos Node órfãos (de `tsx watch`/Jest anteriores não encerrados corretamente)
+  podem travar o binário nativo do Prisma Client no Windows (`EPERM` ao rodar
+  `prisma generate`/`migrate`) — encerrar todos os processos `node` soltos resolve.
+- Bug de dependências opcionais do npm + `.npmrc` global com `os=linux` quebra
+  `vite`/`rollup` no Windows — ver seção "Stack — Frontend" acima para a correção
+  (`npm install --os=win32 --cpu=x64`, sem tocar no `.npmrc` do usuário).
 
 ## Convenções de trabalho com o Claude Code
 
-- Não gerar nada em `apps/web` sem alinhar antes a stack de frontend
 - Não gerar a migration do Prisma sem o schema ser revisado e aprovado antes
 - Módulos novos seguem o padrão de camadas do `auth` (controller/service/schema/
   routes) — não pular a separação controller/service mesmo em endpoints simples
-- Regras de negócio de limite de plano (ex: máx. 3 matérias no gratuito) vão em
-  `plan.middleware.ts`, não espalhadas pelos services
+- Regras de negócio de limite de plano (ex: máx. 3 matérias no gratuito, histórico de
+  relatório, features exclusivas do Premium) vão em `plan.middleware.ts`, não
+  espalhadas pelos services
+- No frontend, não inventar cores/espaçamentos fora de `src/styles/tokens.css` —
+  sempre usar as CSS custom properties ou as classes utilitárias já definidas em
+  `src/index.css` (`.btn`, `.card`, `.field`, `.input`, `.tag`)

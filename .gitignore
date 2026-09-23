@@ -7,6 +7,7 @@ build/
 .DS_Store
 coverage/
 .vscode/
+*.tsbuildinfo
 
 # Notas pessoais de planejamento - nao publicar no repo
 design-tokens-pomofoca.md
