@@ -25,6 +25,9 @@ export function errorMiddleware(
     );
   }
 
-  logger.error({ error }, 'Unhandled error');
+  // pino so serializa Error automaticamente na chave "err" (seu serializer padrao
+  // procura esse nome exato) - usar "error" faz o log sair como "{}", escondendo a
+  // mensagem/stack real e dificultando debugar qualquer falha inesperada.
+  logger.error({ err: error }, 'Unhandled error');
   return sendError(res, ERROR_CODES.INTERNAL_ERROR, 'Internal server error', 500);
 }

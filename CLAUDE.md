@@ -373,6 +373,22 @@ integração via Jest/Supertest.
   — `frequency: 12` meses = anual) para o frontend exibir sem precisar consultar o
   Mercado Pago de novo
 
+**Descobertas testando com credenciais reais de sandbox** (validado em 2026-09-23):
+- A API do Preapproval **rejeita `back_url` com `localhost`** — precisa ser uma URL
+  pública com HTTPS, mesmo em modo de teste (`{"message":"Invalid value for
+  back_url, must be a valid URL"}`). Pra testar localmente, use um túnel (`ngrok
+  http 5173`) e aponte `MERCADO_PAGO_BACK_URL` pra URL HTTPS gerada por ele — não dá
+  pra usar `http://localhost:5173/...` nem em teste.
+- Em modo sandbox, **`payer_email` precisa ser o e-mail de um "usuário de teste"**
+  do Mercado Pago, não um e-mail real (`{"message":"Both payer and collector must
+  be real or test users"}`). O Mercado Pago exige dois usuários de teste distintos:
+  um "vendedor" (cujo Access Token vai em `MERCADO_PAGO_ACCESS_TOKEN`) e um
+  "comprador" (cujo e-mail é o que `createCheckout` manda como `payer_email` — hoje
+  isso é sempre `user.email`, o e-mail real da conta Pomofoca). Pra testar de
+  ponta a ponta em sandbox, a conta Pomofoca usada no teste precisa ter o e-mail do
+  usuário de teste "comprador", não um e-mail qualquer. Em produção isso deixa de
+  ser problema (usuários reais, `payer_email` real).
+
 **Preço do Premium** (`PREMIUM_MONTHLY_PRICE`/`PREMIUM_YEARLY_PRICE` em `.env`,
 validado com o dono do produto): R$14,90/mês ou R$119,90/ano (equivalente a
 R$9,99/mês, ~33% de desconto — incentivo deliberado para o plano anual, melhor para
@@ -492,6 +508,25 @@ Outras pendências, sem ordem definida ainda:
 - Bug de dependências opcionais do npm + `.npmrc` global com `os=linux` quebra
   `vite`/`rollup` no Windows — ver seção "Stack — Frontend" acima para a correção
   (`npm install --os=win32 --cpu=x64`, sem tocar no `.npmrc` do usuário).
+- **`npm run build --workspace=apps/api` só funciona depois de `npm run
+  build:shared`** (que gera `packages/shared/dist`). O `apps/api/tsconfig.json` tinha
+  um `paths` apontando `@pomofoca/shared` direto pro `src` do pacote compartilhado
+  (conveniente pro `tsx watch` em dev, que respeita `paths` do tsconfig), mas isso
+  conflitava com `rootDir: "./src"` na hora de um `tsc` de verdade (erro TS6059 —
+  arquivo fora do rootDir). Removido o `paths`; agora `@pomofoca/shared` resolve pelo
+  jeito padrão do Node (symlink do workspace → `packages/shared/dist`, via
+  `main`/`types` do `package.json` do pacote). **Esse bug existia desde o começo e
+  nunca foi pego** porque só rodávamos a API via `tsx watch` (que não faz essa
+  checagem) — o build real (e o Docker, que chama exatamente esse script) nunca
+  tinha sido testado até agora. `apps/web` não tinha esse problema porque o `tsc -b`
+  ali roda com `noEmit: true` (só type-check) e o Vite resolve `@pomofoca/shared` via
+  alias próprio (`vite.config.ts`) direto pro `src`, sem precisar do `dist`.
+- **Logs de erro não capturados (`error.middleware.ts`) apareciam como `{}` no
+  pino**, escondendo mensagem e stack trace de qualquer falha inesperada. Causa: o
+  serializer padrão do pino só reconhece a chave `err`, não `error` — `logger.error({
+  error }, ...)` não serializa nada útil. Corrigido pra `logger.error({ err: error
+  }, ...)`. Isso mascarou os erros reais da integração com Mercado Pago por um
+  tempo — vale lembrar desse padrão (`err`, não `error`) em qualquer log futuro.
 
 ## Convenções de trabalho com o Claude Code
 
