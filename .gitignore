@@ -13,3 +13,9 @@ coverage/
 design-tokens-pomofoca.md
 prompt-dev-backend-fococa.md
 prompt-deploy-cicd-pomofoca.md
+
+# agent-mcp (servidor MCP multiagente, tools/agent-mcp/)
+.agent-logs/
+.agent-worktrees/
+tools/agent-mcp/node_modules/
+tools/agent-mcp/dist/
