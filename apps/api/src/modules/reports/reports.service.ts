@@ -3,11 +3,11 @@ import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../../config/database';
 import {
-  addUTCDays,
-  endOfUTCDate,
+  addDays,
+  endOfLocalDate,
+  localDateSurrogate,
   resolveExplicitOrPeriodRange,
   resolvePeriodRange,
-  startOfUTCDate,
   toDateString,
   type Period,
 } from '../../shared/utils/period';
@@ -22,6 +22,12 @@ type SubjectStatsMap = Record<string, SubjectAgg>;
 
 const NO_SUBJECT_KEY = 'none';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+// Piso minimo de totalSeconds (inclui pausas, nao so foco) pra um dia contar como
+// "ativo" na streak. Existe pra nao punir quem estudou de verdade mas teve uma
+// sessao interrompida, e pra nao deixar iniciar/cancelar em poucos segundos inflar
+// a sequencia artificialmente. Exportado - os jobs de notificacao (streak em
+// risco) reusam o mesmo piso em vez de duplicar o numero.
+export const MIN_SECONDS_FOR_ACTIVE_DAY = 300;
 
 interface CompletedSessionInput {
   userId: string;
@@ -30,6 +36,12 @@ interface CompletedSessionInput {
   durationSeconds: number;
   completed: boolean;
   startedAt: Date;
+  // Fuso do usuario NO MOMENTO da chamada - usado pra decidir a que dia de
+  // calendario local a sessao pertence. Se o usuario mudar de fuso entre criar e
+  // apagar a mesma sessao, a reversao pode mirar um dia diferente do original;
+  // risco aceito (janela normalmente curta, mudanca de fuso e rara) em vez de
+  // guardar o dia calculado na propria PomodoroSession.
+  timezone: string;
 }
 
 async function adjustDailyStat(
@@ -37,7 +49,7 @@ async function adjustDailyStat(
   session: CompletedSessionInput,
   sign: 1 | -1,
 ): Promise<void> {
-  const date = startOfUTCDate(session.startedAt);
+  const date = localDateSurrogate(session.startedAt, session.timezone);
   const isFocus = session.type === SESSION_TYPE.FOCUS;
   const subjectKey = session.subjectId ?? NO_SUBJECT_KEY;
 
@@ -120,8 +132,8 @@ export async function reverseCompletedSession(
   await adjustDailyStat(db, session, -1);
 }
 
-export async function getSummary(userId: string, period: Period) {
-  const { from, to } = resolvePeriodRange(period);
+export async function getSummary(userId: string, period: Period, timezone: string) {
+  const { from, to } = resolvePeriodRange(period, timezone);
   const stats = await prisma.dailyStudyStat.findMany({
     where: { userId, date: { gte: from ?? undefined, lte: to } },
   });
@@ -153,8 +165,9 @@ export async function getBreakdown(
   period: Period | undefined,
   from: Date | undefined,
   to: Date | undefined,
+  timezone: string,
 ) {
-  const range = resolveExplicitOrPeriodRange(period, from, to);
+  const range = resolveExplicitOrPeriodRange(period, from, to, timezone);
   const stats = await prisma.dailyStudyStat.findMany({
     where: { userId, date: { gte: range.from ?? undefined, lte: range.to } },
   });
@@ -213,11 +226,17 @@ function computeHeatmapLevel(
   return 4;
 }
 
-export async function getHeatmap(userId: string, year: number) {
+export async function getHeatmap(userId: string, year: number, timezone: string) {
   const yearStart = new Date(Date.UTC(year, 0, 1));
   const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
-  const now = new Date();
-  const rangeEnd = year === now.getUTCFullYear() ? endOfUTCDate(now) : yearEnd;
+  // yearStart/yearEnd sao datas de calendario ja explicitas (o ano pedido), entao
+  // nao precisam de conversao de fuso - so "hoje" (pra saber onde cortar o ano
+  // corrente) precisa, ja que vem de um instante real (`new Date()`).
+  const localToday = localDateSurrogate(new Date(), timezone);
+  const rangeEnd =
+    year === localToday.getUTCFullYear()
+      ? new Date(localToday.getTime() + 24 * 60 * 60 * 1000 - 1)
+      : yearEnd;
 
   const stats = await prisma.dailyStudyStat.findMany({
     where: { userId, date: { gte: yearStart, lte: rangeEnd } },
@@ -239,7 +258,7 @@ export async function getHeatmap(userId: string, year: number) {
   );
 
   const days = [];
-  for (let cursor = yearStart; cursor <= rangeEnd; cursor = addUTCDays(cursor, 1)) {
+  for (let cursor = yearStart; cursor <= rangeEnd; cursor = addDays(cursor, 1)) {
     const dateStr = toDateString(cursor);
     const entry = statsByDate.get(dateStr);
     const minutes = entry?.minutes ?? 0;
@@ -260,8 +279,9 @@ export async function getTrend(
   from: Date | undefined,
   to: Date | undefined,
   granularity: 'day' | 'week' | 'month',
+  timezone: string,
 ) {
-  const range = resolveExplicitOrPeriodRange(period, from, to);
+  const range = resolveExplicitOrPeriodRange(period, from, to, timezone);
   const stats = await prisma.dailyStudyStat.findMany({
     where: { userId, date: { gte: range.from ?? undefined, lte: range.to } },
     orderBy: { date: 'asc' },
@@ -280,8 +300,8 @@ export async function getTrend(
       (stat.date.getTime() - anchor.getTime()) / ONE_DAY_MS,
     );
     const bucketIndex = Math.floor(daysSinceAnchor / bucketSizeDays);
-    const bucketFrom = addUTCDays(anchor, bucketIndex * bucketSizeDays);
-    const bucketTo = addUTCDays(bucketFrom, bucketSizeDays - 1);
+    const bucketFrom = addDays(anchor, bucketIndex * bucketSizeDays);
+    const bucketTo = addDays(bucketFrom, bucketSizeDays - 1);
     const bucket = buckets.get(bucketIndex) ?? {
       from: bucketFrom,
       to: bucketTo,
@@ -310,18 +330,18 @@ export async function getTrend(
   };
 }
 
-export async function getStreak(userId: string, plan: Plan) {
+export async function getStreak(userId: string, plan: Plan, timezone: string) {
   const scope: 'week' | 'all' = plan === 'FREE' ? 'week' : 'all';
   const range =
     scope === 'week'
-      ? resolvePeriodRange('week')
-      : { from: null, to: endOfUTCDate(new Date()) };
+      ? resolvePeriodRange('week', timezone)
+      : { from: null, to: endOfLocalDate(new Date(), timezone) };
 
   const activeStats = await prisma.dailyStudyStat.findMany({
     where: {
       userId,
       date: { gte: range.from ?? undefined, lte: range.to },
-      focusSeconds: { gt: 0 },
+      totalSeconds: { gte: MIN_SECONDS_FOR_ACTIVE_DAY },
     },
     orderBy: { date: 'asc' },
     select: { date: true },
@@ -343,7 +363,7 @@ export async function getStreak(userId: string, plan: Plan) {
   }
 
   const activeSet = new Set(activeDates);
-  const today = startOfUTCDate(new Date()).getTime();
+  const today = localDateSurrogate(new Date(), timezone).getTime();
   let currentStreak = 0;
   let cursor = activeSet.has(today) ? today : today - ONE_DAY_MS;
   while (activeSet.has(cursor)) {
@@ -359,8 +379,12 @@ export async function getStreak(userId: string, plan: Plan) {
   };
 }
 
-export async function getCompare(userId: string, period: Exclude<Period, 'all'>) {
-  const current = resolvePeriodRange(period);
+export async function getCompare(
+  userId: string,
+  period: Exclude<Period, 'all'>,
+  timezone: string,
+) {
+  const current = resolvePeriodRange(period, timezone);
   const currentFrom = current.from as Date;
   const spanMs = current.to.getTime() - currentFrom.getTime();
   const previousTo = new Date(currentFrom.getTime() - 1);
@@ -412,4 +436,16 @@ export async function getCompare(userId: string, period: Exclude<Period, 'all'>)
     },
     changePercentage,
   };
+}
+
+/**
+ * DailyStudyStat do dia de hoje (no fuso local do usuario), ou null se ainda nao
+ * houve nenhuma atividade hoje. Usado pelos jobs de notificacao (lembrete diario,
+ * streak em risco) pra decidir se o usuario ja estudou hoje - reusa o mesmo
+ * conceito de "dia local" de todo o resto do modulo, nunca recalcula por conta
+ * propria.
+ */
+export async function getTodayStat(userId: string, timezone: string) {
+  const date = localDateSurrogate(new Date(), timezone);
+  return prisma.dailyStudyStat.findUnique({ where: { userId_date: { userId, date } } });
 }

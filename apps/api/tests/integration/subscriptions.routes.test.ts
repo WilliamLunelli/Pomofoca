@@ -88,6 +88,7 @@ describe('subscriptions routes - authenticated endpoints', () => {
       sub: 'user-1',
       email: 'ada@example.com',
       plan: 'PREMIUM',
+      timezone: 'America/Sao_Paulo',
     });
     const response = await request(app)
       .get('/api/subscriptions')

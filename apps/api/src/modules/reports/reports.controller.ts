@@ -12,35 +12,52 @@ import type {
 
 export async function summaryHandler(req: Request, res: Response) {
   const { period } = req.query as unknown as SummaryQuery;
-  const data = await reportsService.getSummary(req.user!.id, period);
+  const data = await reportsService.getSummary(req.user!.id, period, req.user!.timezone);
   return sendSuccess(res, data);
 }
 
 export async function breakdownHandler(req: Request, res: Response) {
   const { period, from, to } = req.query as unknown as RangeQuery;
-  const data = await reportsService.getBreakdown(req.user!.id, period, from, to);
+  const data = await reportsService.getBreakdown(
+    req.user!.id,
+    period,
+    from,
+    to,
+    req.user!.timezone,
+  );
   return sendSuccess(res, data);
 }
 
 export async function heatmapHandler(req: Request, res: Response) {
   const { year } = req.query as unknown as HeatmapQuery;
-  const data = await reportsService.getHeatmap(req.user!.id, year);
+  const data = await reportsService.getHeatmap(req.user!.id, year, req.user!.timezone);
   return sendSuccess(res, data);
 }
 
 export async function trendHandler(req: Request, res: Response) {
   const { period, from, to, granularity } = req.query as unknown as TrendQuery;
-  const data = await reportsService.getTrend(req.user!.id, period, from, to, granularity);
+  const data = await reportsService.getTrend(
+    req.user!.id,
+    period,
+    from,
+    to,
+    granularity,
+    req.user!.timezone,
+  );
   return sendSuccess(res, data);
 }
 
 export async function streakHandler(req: Request, res: Response) {
-  const data = await reportsService.getStreak(req.user!.id, req.user!.plan);
+  const data = await reportsService.getStreak(
+    req.user!.id,
+    req.user!.plan,
+    req.user!.timezone,
+  );
   return sendSuccess(res, data);
 }
 
 export async function compareHandler(req: Request, res: Response) {
   const { period } = req.query as unknown as CompareQuery;
-  const data = await reportsService.getCompare(req.user!.id, period);
+  const data = await reportsService.getCompare(req.user!.id, period, req.user!.timezone);
   return sendSuccess(res, data);
 }

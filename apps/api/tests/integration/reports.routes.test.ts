@@ -22,7 +22,7 @@ import { app } from '../../src/app';
 import { signAccessToken } from '../../src/shared/utils/jwt';
 
 function authHeaderFor(plan: 'FREE' | 'PREMIUM') {
-  return `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan })}`;
+  return `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan, timezone: 'America/Sao_Paulo' })}`;
 }
 
 describe('reports routes - plan gating', () => {

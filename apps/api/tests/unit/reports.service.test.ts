@@ -37,6 +37,7 @@ const focusSession = {
   durationSeconds: 1500,
   completed: true,
   startedAt: new Date('2026-01-05T10:00:00.000Z'),
+  timezone: 'UTC',
 };
 
 describe('reports.service - recordCompletedSession', () => {
@@ -79,6 +80,27 @@ describe('reports.service - recordCompletedSession', () => {
         sessionsCompleted: 2,
         sessionsInterrupted: 0,
         bySubject: { 'subject-1': { seconds: 2100, completed: 2 } },
+      }),
+    });
+  });
+
+  it('buckets a late-evening session to the user local day, not the UTC day', async () => {
+    mockedPrisma.dailyStudyStat.findUnique.mockResolvedValueOnce(null);
+
+    // 22h em America/Sao_Paulo (UTC-3) no dia 5 de janeiro = 01h UTC no dia 6. Sem
+    // o fuso do usuario, isso seria bucketizado (errado) no dia 6 - exatamente o
+    // bug que motivou essa correcao (sessoes a noite, comuns no Brasil, sendo
+    // creditadas no dia seguinte).
+    await reportsService.recordCompletedSession(db, {
+      ...focusSession,
+      startedAt: new Date('2026-01-06T01:00:00.000Z'),
+      timezone: 'America/Sao_Paulo',
+    });
+
+    expect(mockedPrisma.dailyStudyStat.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        date: new Date('2026-01-05T00:00:00.000Z'),
       }),
     });
   });
@@ -137,7 +159,7 @@ describe('reports.service - getSummary', () => {
       { focusSeconds: 0, sessionsCompleted: 0, sessionsInterrupted: 0 },
     ]);
 
-    const result = await reportsService.getSummary('user-1', 'week');
+    const result = await reportsService.getSummary('user-1', 'week', 'UTC');
 
     expect(result.studyMinutes).toBe(75);
     expect(result.sessionsCompleted).toBe(3);
@@ -167,6 +189,7 @@ describe('reports.service - getBreakdown', () => {
       'week',
       undefined,
       undefined,
+      'UTC',
     );
 
     expect(result.totalMinutes).toBe(30);
@@ -203,7 +226,7 @@ describe('reports.service - getHeatmap', () => {
       },
     ]);
 
-    const result = await reportsService.getHeatmap('user-1', 2025);
+    const result = await reportsService.getHeatmap('user-1', 2025, 'UTC');
 
     expect(result.maxMinutesInDay).toBe(100);
     expect(result.days).toHaveLength(365);
@@ -249,7 +272,7 @@ describe('reports.service - getStreak', () => {
       { date: todayUTC },
     ]);
 
-    const result = await reportsService.getStreak('user-1', 'PREMIUM');
+    const result = await reportsService.getStreak('user-1', 'PREMIUM', 'UTC');
 
     expect(result.scope).toBe('all');
     expect(result.currentStreak).toBe(3);
@@ -259,13 +282,30 @@ describe('reports.service - getStreak', () => {
   it('scopes the streak window to the last 7 days for free-plan users', async () => {
     mockedPrisma.dailyStudyStat.findMany.mockResolvedValueOnce([]);
 
-    const result = await reportsService.getStreak('user-1', 'FREE');
+    const result = await reportsService.getStreak('user-1', 'FREE', 'UTC');
 
     expect(result.scope).toBe('week');
     expect(mockedPrisma.dailyStudyStat.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           date: expect.objectContaining({ gte: expect.any(Date) }),
+        }),
+      }),
+    );
+  });
+
+  it('only counts a day as active once totalSeconds reaches the 5-minute floor', async () => {
+    mockedPrisma.dailyStudyStat.findMany.mockResolvedValueOnce([]);
+
+    await reportsService.getStreak('user-1', 'PREMIUM', 'UTC');
+
+    // Trava a regra: uma sessao interrompida (ex: 40s de foco antes de cancelar)
+    // nao pode inflar a streak - so conta com pelo menos 300s de totalSeconds no
+    // dia, mesmo que boa parte seja pausa, nao so foco.
+    expect(mockedPrisma.dailyStudyStat.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          totalSeconds: { gte: 300 },
         }),
       }),
     );
@@ -278,7 +318,7 @@ describe('reports.service - getCompare', () => {
       .mockResolvedValueOnce([{ focusSeconds: 6000, sessionsCompleted: 4 }])
       .mockResolvedValueOnce([{ focusSeconds: 3000, sessionsCompleted: 2 }]);
 
-    const result = await reportsService.getCompare('user-1', 'week');
+    const result = await reportsService.getCompare('user-1', 'week', 'UTC');
 
     expect(result.current.studyMinutes).toBe(100);
     expect(result.previous.studyMinutes).toBe(50);
@@ -290,7 +330,7 @@ describe('reports.service - getCompare', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
-    const result = await reportsService.getCompare('user-1', 'today');
+    const result = await reportsService.getCompare('user-1', 'today', 'UTC');
 
     expect(result.changePercentage).toBe(0);
   });
