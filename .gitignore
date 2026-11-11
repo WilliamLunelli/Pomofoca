@@ -13,3 +13,12 @@ coverage/
 design-tokens-pomofoca.md
 prompt-dev-backend-fococa.md
 prompt-deploy-cicd-pomofoca.md
+
+# Skills do Claude Code sincronizados localmente (regeneram a partir de
+# skills-lock.json/fontes remotas) - cache de ferramenta, nao codigo do produto
+.agents/
+.claude/
+skills-lock.json
+
+# Build de dev do service worker (vite-plugin-pwa, modo devOptions.enabled)
+apps/web/dev-dist/
