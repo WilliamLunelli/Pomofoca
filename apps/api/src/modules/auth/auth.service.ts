@@ -14,6 +14,7 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from '../../shared/utils/jwt';
+import { resolveTimezone } from '../../shared/utils/timezone';
 import type { AuthResult, AuthTokens, AuthenticatedUser } from './auth.types';
 import type { GoogleAuthInput, LoginInput, RegisterInput } from './auth.schema';
 
@@ -27,8 +28,15 @@ function toAuthenticatedUser(user: {
   name: string;
   email: string;
   plan: AuthenticatedUser['plan'];
+  timezone: string;
 }): AuthenticatedUser {
-  return { id: user.id, name: user.name, email: user.email, plan: user.plan };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    plan: user.plan,
+    timezone: user.timezone,
+  };
 }
 
 function refreshTokenKey(userId: string, jti: string) {
@@ -36,7 +44,12 @@ function refreshTokenKey(userId: string, jti: string) {
 }
 
 async function issueTokens(user: AuthenticatedUser): Promise<AuthTokens> {
-  const accessToken = signAccessToken({ sub: user.id, email: user.email, plan: user.plan });
+  const accessToken = signAccessToken({
+    sub: user.id,
+    email: user.email,
+    plan: user.plan,
+    timezone: user.timezone,
+  });
 
   const jti = crypto.randomUUID();
   const refreshToken = signRefreshToken({ sub: user.id, jti });
@@ -54,7 +67,12 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_SALT_ROUNDS);
   const user = await prisma.user.create({
-    data: { name: input.name, email: input.email, passwordHash },
+    data: {
+      name: input.name,
+      email: input.email,
+      passwordHash,
+      timezone: resolveTimezone(input.timezone),
+    },
   });
 
   const authenticatedUser = toAuthenticatedUser(user);
@@ -63,14 +81,30 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
 }
 
 export async function login(input: LoginInput): Promise<AuthResult> {
-  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  let user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user?.passwordHash) {
-    throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid e-mail or password', 401);
+    throw new AppError(
+      ERROR_CODES.INVALID_CREDENTIALS,
+      'Invalid e-mail or password',
+      401,
+    );
   }
 
   const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
   if (!passwordMatches) {
-    throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid e-mail or password', 401);
+    throw new AppError(
+      ERROR_CODES.INVALID_CREDENTIALS,
+      'Invalid e-mail or password',
+      401,
+    );
+  }
+
+  // Fuso pode ter mudado desde o cadastro (usuario viajou, trocou de dispositivo) -
+  // mantem atualizado a cada login, ja que os jobs de notificacao dependem dele
+  // pra disparar no horario local certo.
+  const timezone = resolveTimezone(input.timezone);
+  if (input.timezone && timezone !== user.timezone) {
+    user = await prisma.user.update({ where: { id: user.id }, data: { timezone } });
   }
 
   const authenticatedUser = toAuthenticatedUser(user);
@@ -99,13 +133,22 @@ export async function loginWithGoogle(input: GoogleAuthInput): Promise<AuthResul
         name: payload.name ?? payload.email,
         email: payload.email,
         googleId: payload.sub,
+        timezone: resolveTimezone(input.timezone),
       },
     });
-  } else if (!user.googleId) {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { googleId: payload.sub },
-    });
+  } else {
+    const timezone = resolveTimezone(input.timezone);
+    const needsGoogleId = !user.googleId;
+    const needsTimezoneRefresh = Boolean(input.timezone) && timezone !== user.timezone;
+    if (needsGoogleId || needsTimezoneRefresh) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(needsGoogleId && { googleId: payload.sub }),
+          ...(needsTimezoneRefresh && { timezone }),
+        },
+      });
+    }
   }
 
   const authenticatedUser = toAuthenticatedUser(user);
@@ -118,13 +161,21 @@ export async function refresh(refreshToken: string): Promise<AuthTokens> {
   try {
     payload = verifyRefreshToken(refreshToken);
   } catch {
-    throw new AppError(ERROR_CODES.INVALID_REFRESH_TOKEN, 'Invalid or expired refresh token', 401);
+    throw new AppError(
+      ERROR_CODES.INVALID_REFRESH_TOKEN,
+      'Invalid or expired refresh token',
+      401,
+    );
   }
 
   const key = refreshTokenKey(payload.sub, payload.jti);
   const exists = await redis.get(key);
   if (!exists) {
-    throw new AppError(ERROR_CODES.INVALID_REFRESH_TOKEN, 'Refresh token has been revoked', 401);
+    throw new AppError(
+      ERROR_CODES.INVALID_REFRESH_TOKEN,
+      'Refresh token has been revoked',
+      401,
+    );
   }
 
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });

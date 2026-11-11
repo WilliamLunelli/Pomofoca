@@ -3,16 +3,18 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 export function LoginPage() {
-  const { user, loading, login } = useAuth();
+  const { user, loading, login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   if (!loading && user) return <Navigate to="/timer" replace />;
 
@@ -30,6 +32,20 @@ export function LoginPage() {
     }
   }
 
+  async function handleGoogleCredential(idToken: string) {
+    setError(null);
+    setGoogleSubmitting(true);
+    try {
+      await loginWithGoogle(idToken);
+      navigate('/timer');
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Não foi possível entrar com Google.',
+      );
+      setGoogleSubmitting(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg p-6">
       <div className="w-full max-w-sm">
@@ -42,6 +58,17 @@ export function LoginPage() {
         <p className="mb-8 text-sm text-muted">
           Entre para continuar sua sequência de estudos.
         </p>
+
+        <GoogleSignInButton onCredential={handleGoogleCredential} onError={setError} />
+        {googleSubmitting && (
+          <p className="mt-2 text-center text-xs text-muted">Entrando…</p>
+        )}
+
+        <div className="my-6 flex items-center gap-3 text-xs text-muted">
+          <div className="h-px flex-1 bg-divider" />
+          ou entre com e-mail
+          <div className="h-px flex-1 bg-divider" />
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="field">

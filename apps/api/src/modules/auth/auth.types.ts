@@ -10,6 +10,7 @@ export interface AuthenticatedUser {
   name: string;
   email: string;
   plan: Plan;
+  timezone: string;
 }
 
 export interface AuthResult {

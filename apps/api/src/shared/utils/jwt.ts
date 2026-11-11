@@ -7,6 +7,7 @@ export interface AccessTokenPayload {
   sub: string;
   email: string;
   plan: Plan;
+  timezone: string;
 }
 
 export interface RefreshTokenPayload {

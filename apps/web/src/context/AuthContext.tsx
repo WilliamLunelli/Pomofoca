@@ -14,11 +14,25 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
+
+// Capturado automaticamente, nunca escolhido manualmente pelo usuario - os jobs de
+// notificacao (lembrete no horario aprendido, streak em risco as 20h) usam isso no
+// backend pra disparar no horario local certo, nao UTC do servidor.
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -45,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const result = await api.post<{ user: User; tokens: AuthTokensResponse }>(
       '/auth/login',
-      { email, password },
+      { email, password, timezone: detectTimezone() },
       { skipAuth: true },
     );
     setTokens(result.tokens.accessToken, result.tokens.refreshToken);
@@ -55,7 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (name: string, email: string, password: string) => {
     const result = await api.post<{ user: User; tokens: AuthTokensResponse }>(
       '/auth/register',
-      { name, email, password },
+      { name, email, password, timezone: detectTimezone() },
+      { skipAuth: true },
+    );
+    setTokens(result.tokens.accessToken, result.tokens.refreshToken);
+    setUser(result.user);
+  }, []);
+
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const result = await api.post<{ user: User; tokens: AuthTokensResponse }>(
+      '/auth/google',
+      { idToken, timezone: detectTimezone() },
       { skipAuth: true },
     );
     setTokens(result.tokens.accessToken, result.tokens.refreshToken);
@@ -68,7 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, loginWithGoogle, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );
