@@ -35,7 +35,12 @@ const mockedPrisma = prisma as unknown as {
 };
 
 function authHeaderFor(plan: 'FREE' | 'PREMIUM') {
-  const token = signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan });
+  const token = signAccessToken({
+    sub: 'user-1',
+    email: 'ada@example.com',
+    plan,
+    timezone: 'America/Sao_Paulo',
+  });
   return `Bearer ${token}`;
 }
 

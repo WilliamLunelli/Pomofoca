@@ -7,6 +7,7 @@ const sessionTypeSchema = z.enum(SESSION_TYPE_VALUES);
 export const createSessionSchema = z
   .object({
     subjectId: z.string().uuid().optional(),
+    taskId: z.string().uuid().optional(),
     type: sessionTypeSchema,
     durationSeconds: z.coerce.number().int().positive(),
     completed: z.boolean().default(true),

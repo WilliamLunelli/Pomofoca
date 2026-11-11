@@ -46,7 +46,7 @@ const mockedPrisma = prisma as unknown as {
   };
 };
 
-const authHeader = `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan: 'FREE' })}`;
+const authHeader = `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan: 'FREE', timezone: 'America/Sao_Paulo' })}`;
 
 describe('sessions routes', () => {
   it('rejects unauthenticated requests', async () => {

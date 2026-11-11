@@ -63,7 +63,7 @@ describe('sessions.service', () => {
   it('creates a free session with no subject', async () => {
     mockedPrisma.pomodoroSession.create.mockResolvedValueOnce(baseSession);
 
-    const result = await sessionsService.createSession('user-1', {
+    const result = await sessionsService.createSession('user-1', 'UTC', {
       type: 'FOCUS',
       durationSeconds: 1500,
       completed: true,
@@ -86,7 +86,7 @@ describe('sessions.service', () => {
     expect(result).toEqual(baseSession);
     expect(mockedReportsService.recordCompletedSession).toHaveBeenCalledWith(
       expect.anything(),
-      baseSession,
+      { ...baseSession, timezone: 'UTC' },
     );
   });
 
@@ -97,7 +97,7 @@ describe('sessions.service', () => {
       subjectId: 'subject-1',
     });
 
-    await sessionsService.createSession('user-1', {
+    await sessionsService.createSession('user-1', 'UTC', {
       subjectId: 'subject-1',
       type: 'FOCUS',
       durationSeconds: 1500,
@@ -115,7 +115,7 @@ describe('sessions.service', () => {
     );
 
     await expect(
-      sessionsService.createSession('user-1', {
+      sessionsService.createSession('user-1', 'UTC', {
         subjectId: 'someone-elses-subject',
         type: 'FOCUS',
         durationSeconds: 1500,
@@ -139,14 +139,14 @@ describe('sessions.service', () => {
     mockedPrisma.pomodoroSession.findFirst.mockResolvedValueOnce(baseSession);
     mockedPrisma.pomodoroSession.delete.mockResolvedValueOnce(baseSession);
 
-    await sessionsService.deleteSession('user-1', 'session-1');
+    await sessionsService.deleteSession('user-1', 'UTC', 'session-1');
 
     expect(mockedPrisma.pomodoroSession.delete).toHaveBeenCalledWith({
       where: { id: 'session-1' },
     });
     expect(mockedReportsService.reverseCompletedSession).toHaveBeenCalledWith(
       expect.anything(),
-      baseSession,
+      { ...baseSession, timezone: 'UTC' },
     );
   });
 });

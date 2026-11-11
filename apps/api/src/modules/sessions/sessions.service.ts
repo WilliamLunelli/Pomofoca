@@ -5,6 +5,7 @@ import { AppError } from '../../shared/errors/AppError';
 import { ERROR_CODES } from '../../shared/errors/errorCodes';
 import * as reportsService from '../reports/reports.service';
 import * as subjectsService from '../subjects/subjects.service';
+import { findOwnedTaskOrThrow } from '../tasks/tasks.service';
 import type { CreateSessionInput, ListSessionsQuery } from './sessions.schema';
 
 async function findOwnedSession(userId: string, id: string) {
@@ -15,9 +16,16 @@ async function findOwnedSession(userId: string, id: string) {
   return session;
 }
 
-export async function createSession(userId: string, input: CreateSessionInput) {
+export async function createSession(
+  userId: string,
+  timezone: string,
+  input: CreateSessionInput,
+) {
   if (input.subjectId) {
     await subjectsService.getSubject(userId, input.subjectId);
+  }
+  if (input.taskId) {
+    await findOwnedTaskOrThrow(userId, input.taskId);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -25,6 +33,7 @@ export async function createSession(userId: string, input: CreateSessionInput) {
       data: {
         userId,
         subjectId: input.subjectId,
+        taskId: input.taskId,
         type: input.type as SessionType,
         durationSeconds: input.durationSeconds,
         completed: input.completed,
@@ -33,7 +42,7 @@ export async function createSession(userId: string, input: CreateSessionInput) {
       },
     });
 
-    await reportsService.recordCompletedSession(tx, session);
+    await reportsService.recordCompletedSession(tx, { ...session, timezone });
 
     return session;
   });
@@ -59,11 +68,11 @@ export async function getSession(userId: string, id: string) {
   return findOwnedSession(userId, id);
 }
 
-export async function deleteSession(userId: string, id: string) {
+export async function deleteSession(userId: string, timezone: string, id: string) {
   const session = await findOwnedSession(userId, id);
 
   await prisma.$transaction(async (tx) => {
     await tx.pomodoroSession.delete({ where: { id } });
-    await reportsService.reverseCompletedSession(tx, session);
+    await reportsService.reverseCompletedSession(tx, { ...session, timezone });
   });
 }

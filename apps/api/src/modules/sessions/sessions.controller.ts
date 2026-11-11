@@ -1,12 +1,19 @@
 import type { Request, Response } from 'express';
 
+import { getActiveTimer } from '../../realtime/activeTimer';
 import { sendSuccess } from '../../shared/utils/apiResponse';
 import * as sessionsService from './sessions.service';
 import type { CreateSessionInput, ListSessionsQuery } from './sessions.schema';
 
+export async function getActiveHandler(req: Request, res: Response) {
+  const active = await getActiveTimer(req.user!.id);
+  return sendSuccess(res, active);
+}
+
 export async function createHandler(req: Request, res: Response) {
   const session = await sessionsService.createSession(
     req.user!.id,
+    req.user!.timezone,
     req.body as CreateSessionInput,
   );
   return sendSuccess(res, session, 201);
@@ -24,6 +31,6 @@ export async function getHandler(req: Request, res: Response) {
 }
 
 export async function deleteHandler(req: Request, res: Response) {
-  await sessionsService.deleteSession(req.user!.id, req.params.id);
+  await sessionsService.deleteSession(req.user!.id, req.user!.timezone, req.params.id);
   return sendSuccess(res, null, 200);
 }

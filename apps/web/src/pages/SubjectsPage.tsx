@@ -1,11 +1,12 @@
-import { Archive, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { Archive, ArrowCounterClockwise, Check } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { SubjectTasks, SubjectTasksToggle } from '@/components/SubjectTasks';
 import { useAuth } from '@/context/AuthContext';
 import { useSubjects } from '@/hooks/useSubjects';
 import { api, ApiError } from '@/lib/api';
-import { SUBJECT_COLOR_PRESETS } from '@/lib/color';
+import { getReadableTextColor, SUBJECT_COLOR_PRESETS } from '@/lib/color';
 import type { Subject } from '@/lib/types';
 
 export function SubjectsPage() {
@@ -17,6 +18,7 @@ export function SubjectsPage() {
   const [goal, setGoal] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedTasksFor, setExpandedTasksFor] = useState<string | null>(null);
 
   const active = subjects.filter((s) => !s.archived);
   const archived = subjects.filter((s) => s.archived);
@@ -55,7 +57,7 @@ export function SubjectsPage() {
   }
 
   return (
-    <div className="max-w-[780px] p-6 md:p-8">
+    <div className="p-6 md:p-8">
       <div className="mb-8 flex items-start justify-between gap-6">
         <div>
           <h3 className="text-xl">Matérias</h3>
@@ -77,7 +79,10 @@ export function SubjectsPage() {
       {formOpen && (
         <form
           onSubmit={handleSubmit}
-          className="card mb-6 flex flex-wrap items-end gap-6 p-8"
+          // Formulario fica com largura de leitura confortavel mesmo num monitor
+          // grande - diferente da listagem abaixo, um form nao deve "esticar" pra
+          // preencher o espaco, so fica com campos espalhados sem motivo.
+          className="card mb-6 flex max-w-[720px] flex-wrap items-end gap-6 p-8"
           style={{ animation: 'fk-rise 200ms ease' }}
         >
           <div className="field min-w-[200px] flex-1">
@@ -94,19 +99,31 @@ export function SubjectsPage() {
           <div className="field">
             <label>Cor</label>
             <div className="flex gap-1.5">
-              {SUBJECT_COLOR_PRESETS.map((hex) => (
-                <button
-                  key={hex}
-                  type="button"
-                  title={hex}
-                  onClick={() => setColor(hex)}
-                  className="h-[26px] w-[26px] rounded-full border-2"
-                  style={{
-                    background: hex,
-                    borderColor: color === hex ? hex : 'transparent',
-                  }}
-                />
-              ))}
+              {SUBJECT_COLOR_PRESETS.map((hex) => {
+                const selected = color === hex;
+                return (
+                  <button
+                    key={hex}
+                    type="button"
+                    title={hex}
+                    aria-label={hex}
+                    aria-pressed={selected}
+                    onClick={() => setColor(hex)}
+                    className="flex h-[26px] w-[26px] items-center justify-center rounded-full transition-transform"
+                    style={{
+                      background: hex,
+                      transform: selected ? 'scale(1.12)' : 'scale(1)',
+                      boxShadow: selected
+                        ? '0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text)'
+                        : 'none',
+                    }}
+                  >
+                    {selected && (
+                      <Check size={13} weight="bold" color={getReadableTextColor(hex)} />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="field w-[120px]">
@@ -130,49 +147,87 @@ export function SubjectsPage() {
       {loading && <p className="text-sm text-muted">Carregando…</p>}
       {error && <p className="text-sm text-cta">{error}</p>}
 
-      <div className="flex flex-col gap-4">
-        {active.map((s) => (
-          <div key={s.id} className="card flex items-center gap-6 p-6">
-            <div
-              className="h-[38px] w-[38px] flex-none rounded-sm"
-              style={{ background: `${s.color}22` }}
-            >
-              <div className="flex h-full w-full items-center justify-center">
-                <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-heading text-[15px]">{s.name}</div>
-              {s.weeklyGoalMinutes && (
-                <div className="text-xs text-muted">
-                  meta: {Math.round(s.weeklyGoalMinutes / 60)}h/semana
+      {!loading && !error && active.length === 0 && !formOpen && (
+        <div className="card mx-auto flex max-w-[480px] flex-col items-center gap-3 p-10 text-center">
+          <p className="text-sm text-text">Nenhuma matéria ainda.</p>
+          <p className="max-w-[38ch] text-xs text-muted">
+            Crie uma matéria pra começar a separar seu tempo de estudo por assunto — é o
+            que alimenta o relatório.
+          </p>
+          <button className="btn btn-primary mt-2" onClick={() => setFormOpen(true)}>
+            Nova matéria
+          </button>
+        </div>
+      )}
+
+      {/* auto-fill/minmax em vez de coluna unica - o numero de cards por linha se
+          ajusta sozinho ao espaco disponivel (1 no mobile, varios num 4K), sem
+          breakpoints manuais. items-start evita que um card com tarefas expandidas
+          estique visualmente os vizinhos mais curtos na mesma linha (a linha ainda
+          reserva a altura do mais alto - isso e comportamento normal de grid - mas
+          cada card fica no topo da propria celula em vez de esticar o fundo). */}
+      <div
+        className="grid items-start gap-4"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+      >
+        {active.map((s) => {
+          const tasksExpanded = expandedTasksFor === s.id;
+          return (
+            <div key={s.id} className="card overflow-hidden">
+              <div className="flex items-center gap-4 p-5">
+                <div
+                  className="h-[38px] w-[38px] flex-none rounded-sm"
+                  style={{ background: `${s.color}22` }}
+                >
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span
+                      className="h-3 w-3 rounded-full"
+                      style={{ background: s.color }}
+                    />
+                  </div>
                 </div>
-              )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-heading text-[15px]">{s.name}</div>
+                  {s.weeklyGoalMinutes && (
+                    <div className="text-xs text-muted">
+                      meta: {Math.round(s.weeklyGoalMinutes / 60)}h/semana
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-none items-center gap-1">
+                  <SubjectTasksToggle
+                    expanded={tasksExpanded}
+                    onToggle={() => setExpandedTasksFor(tasksExpanded ? null : s.id)}
+                  />
+                  <button
+                    className="btn btn-ghost btn-icon"
+                    title="Arquivar"
+                    onClick={() => archive(s.id)}
+                  >
+                    <Archive size={16} />
+                  </button>
+                </div>
+              </div>
+              {tasksExpanded && <SubjectTasks subjectId={s.id} />}
             </div>
-            <div className="flex flex-none gap-1">
-              <button
-                className="btn btn-ghost btn-icon"
-                title="Arquivar"
-                onClick={() => archive(s.id)}
-              >
-                <Archive size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {archived.length > 0 && (
         <div className="mt-8">
           <h6 className="mb-4">Arquivadas</h6>
-          <div className="flex flex-col gap-3">
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+          >
             {archived.map((s) => (
               <div key={s.id} className="card flex items-center gap-4 p-4 opacity-60">
                 <span
-                  className="h-2.5 w-2.5 rounded-full"
+                  className="h-2.5 w-2.5 flex-none rounded-full"
                   style={{ background: s.color }}
                 />
-                <span className="flex-1 text-sm">{s.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">{s.name}</span>
                 <button
                   className="btn btn-ghost btn-icon"
                   title="Restaurar"
