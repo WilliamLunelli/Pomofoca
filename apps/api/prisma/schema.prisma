@@ -36,13 +36,24 @@ model User {
   passwordHash String?  @map("password_hash")
   googleId     String?  @unique @map("google_id")
   plan         Plan     @default(FREE)
+  // IANA (ex: "America/Sao_Paulo") - capturado automaticamente no frontend via
+  // Intl.DateTimeFormat().resolvedOptions().timeZone a cada login/cadastro, nunca
+  // escolhido manualmente. Os jobs de notificacao (lembrete no horario aprendido,
+  // streak em risco as 20h) usam este campo pra disparar no horario local certo,
+  // nao UTC do servidor.
+  timezone     String   @default("America/Sao_Paulo")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  subjects        Subject[]
-  sessions        PomodoroSession[]
-  subscriptions   Subscription[]
-  dailyStudyStats DailyStudyStat[]
+  subjects                Subject[]
+  sessions                PomodoroSession[]
+  subscriptions           Subscription[]
+  dailyStudyStats         DailyStudyStat[]
+  notificationPreference  NotificationPreference?
+  pushSubscriptions       PushSubscription[]
+  insightSnapshot         InsightSnapshot?
+  tasks                   Task[]
+  routineBlocks           RoutineBlock[]
 
   @@map("users")
 }
@@ -60,15 +71,65 @@ model Subject {
 
   user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions PomodoroSession[]
+  tasks    Task[]
+  routineBlocks RoutineBlock[]
 
   @@index([userId])
   @@map("subjects")
+}
+
+// Tarefa dentro de uma materia - conecta tempo estudado a um objetivo concreto,
+// nao so "estudei Calculo" generico. `order` permite reordenar manualmente
+// (pendentes primeiro na listagem, ver GET /subjects/:subjectId/tasks).
+model Task {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  subjectId   String    @map("subject_id")
+  title       String
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at")
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject  Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sessions PomodoroSession[]
+
+  @@index([userId])
+  @@index([subjectId])
+  @@map("tasks")
+}
+
+// Grid semanal recorrente (nao calendario - sem datas especificas, sem eventos
+// unicos). startTime/endTime em "HH:mm", interpretados no fuso do usuario
+// (User.timezone). `active` permite desativar temporariamente sem apagar o bloco
+// (preserva o horario configurado se a pessoa so quiser pausar por uma semana).
+model RoutineBlock {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  subjectId String?  @map("subject_id")
+  dayOfWeek Int      @map("day_of_week") // 0 = domingo
+  startTime String   @map("start_time") // "HH:mm"
+  endTime   String   @map("end_time") // "HH:mm"
+  label     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("routine_blocks")
 }
 
 model PomodoroSession {
   id             String      @id @default(uuid())
   userId         String      @map("user_id")
   subjectId      String?     @map("subject_id")
+  // Opcional - nao e requisito da v1 de tarefas, mas ja abre espaco pra
+  // relatorios futuros tipo "quanto tempo levou essa tarefa" sem migration extra.
+  taskId         String?     @map("task_id")
   durationSeconds Int        @map("duration_seconds")
   type           SessionType
   completed      Boolean     @default(false)
@@ -78,6 +139,7 @@ model PomodoroSession {
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   subject Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([subjectId])
@@ -106,6 +168,57 @@ model DailyStudyStat {
 
   @@unique([userId, date])
   @@map("daily_study_stats")
+}
+
+// Preferencias de notificacao por usuario (1:1) - Premium. `learnedReminderTime`
+// ("HH:MM", fuso do usuario) e calculado pelo job semanal que analisa a moda dos
+// horarios de inicio de sessao dos ultimos 30 dias; nulo ate a primeira vez que o
+// job rodar com dado suficiente.
+model NotificationPreference {
+  id                   String   @id @default(uuid())
+  userId               String   @unique @map("user_id")
+  dailyReminderEnabled Boolean  @default(true) @map("daily_reminder_enabled")
+  streakRiskEnabled    Boolean  @default(true) @map("streak_risk_enabled")
+  weeklySummaryEnabled Boolean  @default(true) @map("weekly_summary_enabled")
+  learnedReminderTime  String?  @map("learned_reminder_time")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// Uma linha por dispositivo/navegador inscrito (1:N) - payload padrao do Web Push
+// (endpoint + chaves p256dh/auth) guardado como recebido do browser, sem parsear.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  keys      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// Snapshot unico por usuario (upsert, nao historico) - recalculado pelo job
+// semanal insights.worker.ts. `insights` e um array de InsightItem (type/title/
+// description/dataPoints), nunca gerado on-demand por request (consulta pesada
+// sobre historico). dataPointsUsed e o total de sessoes consideradas no calculo,
+// so pra transparencia/debug - nao e o dataPoints de nenhum insight individual.
+model InsightSnapshot {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  generatedAt    DateTime @map("generated_at")
+  insights       Json
+  dataPointsUsed Int      @map("data_points_used")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("insight_snapshots")
 }
 
 model Subscription {
