@@ -20,10 +20,35 @@ export interface Subject {
   updatedAt: string;
 }
 
+export interface Task {
+  id: string;
+  userId: string;
+  subjectId: string;
+  title: string;
+  completed: boolean;
+  completedAt: string | null;
+  order: number;
+  createdAt: string;
+}
+
+export interface RoutineBlock {
+  id: string;
+  userId: string;
+  subjectId: string | null;
+  dayOfWeek: number; // 0-6, domingo=0
+  startTime: string; // "HH:mm"
+  endTime: string; // "HH:mm"
+  label: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PomodoroSession {
   id: string;
   userId: string;
   subjectId: string | null;
+  taskId: string | null;
   type: SessionType;
   durationSeconds: number;
   completed: boolean;
@@ -83,6 +108,42 @@ export interface ReportTrend {
   from: string | null;
   to: string;
   points: ReportTrendPoint[];
+}
+
+export interface ActiveTimerState {
+  subjectId: string | null;
+  mode: 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
+  cycle: number;
+  remainingSeconds: number;
+  totalSeconds: number;
+  status: 'running' | 'paused';
+  updatedAt: string;
+}
+
+export interface NotificationPreferences {
+  id: string;
+  userId: string;
+  dailyReminderEnabled: boolean;
+  streakRiskEnabled: boolean;
+  weeklySummaryEnabled: boolean;
+  learnedReminderTime: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InsightItem {
+  type: 'peak_hours' | 'weak_day' | 'neglected_subject' | 'interruption_pattern';
+  title: string;
+  description: string;
+  dataPoints: number;
+}
+
+export interface InsightsResponse {
+  hasEnoughData: boolean;
+  generatedAt: string | null;
+  missingDays: number;
+  missingSessions: number;
+  insights: InsightItem[];
 }
 
 export interface ReportStreak {

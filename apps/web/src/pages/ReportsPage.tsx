@@ -1,4 +1,4 @@
-import { Flame, Lock } from '@phosphor-icons/react';
+import { Books, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -17,12 +17,21 @@ import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { api, ApiError } from '@/lib/api';
 import type {
+  InsightItem,
+  InsightsResponse,
   ReportBreakdown,
   ReportHeatmap,
   ReportStreak,
   ReportSummary,
   ReportTrend,
 } from '@/lib/types';
+
+const INSIGHT_ICON: Record<InsightItem['type'], typeof Clock> = {
+  peak_hours: Clock,
+  weak_day: CalendarX,
+  neglected_subject: Books,
+  interruption_pattern: Warning,
+};
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all';
 
@@ -68,6 +77,8 @@ export function ReportsPage() {
   const [streak, setStreak] = useState<ReportStreak | null>(null);
   const [heatmap, setHeatmap] = useState<ReportHeatmap | null>(null);
   const [heatmapLocked, setHeatmapLocked] = useState(false);
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [insightsLocked, setInsightsLocked] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -106,6 +117,17 @@ export function ReportsPage() {
       .catch((err) => {
         if (err instanceof ApiError && err.code === 'PREMIUM_FEATURE_REQUIRED') {
           setHeatmapLocked(true);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    api
+      .get<InsightsResponse>('/insights')
+      .then(setInsights)
+      .catch((err) => {
+        if (err instanceof ApiError && err.code === 'PREMIUM_FEATURE_REQUIRED') {
+          setInsightsLocked(true);
         }
       });
   }, []);
@@ -201,6 +223,72 @@ export function ReportsPage() {
           {streak.scope === 'week' && ' (últimos 7 dias, plano gratuito)'}
         </div>
       </div>
+    </div>
+  );
+
+  const insightsCard = (
+    <div className="card p-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h6 className="m-0">Insights</h6>
+        {insightsLocked && (
+          <Link
+            to="/subscription"
+            className="flex items-center gap-1.5 text-xs text-accent"
+          >
+            <Lock size={13} /> recurso Premium
+          </Link>
+        )}
+      </div>
+      {insightsLocked ? (
+        <p className="text-sm text-muted">
+          Insights adaptativos são exclusivos do plano Premium.{' '}
+          <Link to="/subscription" className="text-accent">
+            Assine para desbloquear
+          </Link>
+          .
+        </p>
+      ) : !insights ? (
+        <p className="text-sm text-muted">Carregando…</p>
+      ) : !insights.hasEnoughData ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted">
+            Continue estudando — seus insights aparecem depois que houver dado suficiente
+            pra serem confiáveis.
+          </p>
+          <p className="text-xs text-muted">
+            {insights.missingDays > 0 &&
+              `${insights.missingDays} dia${insights.missingDays === 1 ? '' : 's'} de histórico`}
+            {insights.missingDays > 0 && insights.missingSessions > 0 && ' e '}
+            {insights.missingSessions > 0 &&
+              `${insights.missingSessions} ${insights.missingSessions === 1 ? 'sessão completa' : 'sessões completas'}`}{' '}
+            pra desbloquear.
+          </p>
+        </div>
+      ) : insights.insights.length === 0 ? (
+        <p className="text-sm text-muted">
+          Nada de específico pra destacar ainda — seu padrão de estudo está equilibrado,
+          ou ainda não há dado suficiente pra um insight específico.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {insights.insights.map((insight) => {
+            const Icon = INSIGHT_ICON[insight.type];
+            return (
+              <div key={insight.type} className="flex gap-3">
+                <Icon size={18} className="mt-0.5 flex-none text-accent" />
+                <div>
+                  <div className="text-[13px] font-heading">{insight.title}</div>
+                  <p className="text-[13px] text-muted">{insight.description}</p>
+                  <p className="text-[11px] text-muted">
+                    baseado em {insight.dataPoints}{' '}
+                    {insight.dataPoints === 1 ? 'sessão' : 'sessões'}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -365,6 +453,7 @@ export function ReportsPage() {
 
           {streakCard}
           {heatmapCard}
+          {insightsCard}
         </div>
       )}
 
@@ -430,6 +519,8 @@ export function ReportsPage() {
                 </p>
               )}
             </div>
+
+            {insightsCard}
           </div>
 
           <div className="flex flex-col gap-4">

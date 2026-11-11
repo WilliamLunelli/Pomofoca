@@ -57,6 +57,17 @@ export function hexToOklch(hex: string): Oklch {
   return { l: L, c: C, h: H };
 }
 
+/**
+ * Cor de texto/icone legivel sobre um swatch de cor arbitrario (luminancia relativa
+ * sRGB, aproximacao WCAG) - usado no checkmark dos seletores de cor de matéria/tema,
+ * ja que o mesmo icone precisa funcionar tanto sobre tons claros quanto escuros.
+ */
+export function getReadableTextColor(hex: string): string {
+  const [r, g, b] = hexToRgb(hex).map(srgbToLinear);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.45 ? '#161826' : '#ffffff';
+}
+
 export function oklchToHex({ l, c, h }: Oklch): string {
   const hRad = (h * Math.PI) / 180;
   const a = c * Math.cos(hRad);

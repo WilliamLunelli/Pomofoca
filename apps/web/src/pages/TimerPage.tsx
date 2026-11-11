@@ -1,5 +1,6 @@
 import {
   ArrowCounterClockwise,
+  Check,
   CloudRain,
   Flame,
   MusicNotes,
@@ -14,8 +15,15 @@ import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { usePomodoroSettings, type BackgroundSound } from '@/hooks/usePomodoroSettings';
 import { useSubjects } from '@/hooks/useSubjects';
+import { useSubjectTasks } from '@/hooks/useSubjectTasks';
+import {
+  useTimerSync,
+  type TimerSyncEvent,
+  type TimerSyncPayload,
+} from '@/hooks/useTimerSync';
 import { api, ApiError } from '@/lib/api';
 import type {
+  ActiveTimerState,
   PomodoroSession,
   ReportBreakdown,
   ReportStreak,
@@ -56,6 +64,15 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${s}`;
 }
 
+// Mesma convencao de ReportsPage::formatMinutes - omite "0h" quando o total fica
+// abaixo de uma hora, pra nao poluir o card "Hoje" com "0h 12m" o dia todo.
+function formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 function durationFor(
   mode: Mode,
   settings: ReturnType<typeof usePomodoroSettings>['settings'],
@@ -76,6 +93,7 @@ export function TimerPage() {
   const [remaining, setRemaining] = useState(() => settings.focusMinutes * 60);
   const [running, setRunning] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
   const [todayBreakdown, setTodayBreakdown] = useState<ReportBreakdown | null>(null);
   const [streak, setStreak] = useState<ReportStreak | null>(null);
@@ -84,6 +102,71 @@ export function TimerPage() {
   const startedAtRef = useRef<Date | null>(null);
   const totalRef = useRef(durationFor('FOCUS', settings));
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Espelha selectedSubjectId pro tick do setInterval (que so re-cria em [running,
+  // mode], entao nao pega o valor mais recente via closure direto).
+  const selectedSubjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedSubjectIdRef.current = selectedSubjectId;
+  });
+
+  const { tasks: subjectTasks, toggleTask: toggleSubjectTask } =
+    useSubjectTasks(selectedSubjectId);
+  const pendingTasks = subjectTasks.filter((t) => !t.completed);
+  const activeTask = subjectTasks.find((t) => t.id === selectedTaskId) ?? null;
+
+  // Tarefa ativa e por materia - trocar de materia (ou tirar a selecao) limpa a
+  // tarefa escolhida, senao ficaria uma tarefa de outra materia "ativa" sem sentido.
+  useEffect(() => {
+    setSelectedTaskId(null);
+  }, [selectedSubjectId]);
+
+  const isPremium = user?.plan === 'PREMIUM';
+
+  function handleRemoteTimerEvent(_event: TimerSyncEvent, payload: TimerSyncPayload) {
+    setMode(payload.mode);
+    setCycle(payload.cycle);
+    setSelectedSubjectId(payload.subjectId);
+    totalRef.current = payload.totalSeconds;
+    setRemaining(payload.remainingSeconds);
+    setRunning(payload.status === 'running');
+    startedAtRef.current =
+      payload.status === 'running'
+        ? new Date(Date.now() - (payload.totalSeconds - payload.remainingSeconds) * 1000)
+        : null;
+  }
+
+  const { emit: emitTimerSync } = useTimerSync(isPremium, handleRemoteTimerEvent);
+
+  // Hidrata com o estado de outro dispositivo que ja esteja rodando (ex: abriu o
+  // app no celular com o timer ja ativo no desktop) - antes mesmo do socket conectar.
+  useEffect(() => {
+    if (!isPremium) return;
+    api
+      .get<ActiveTimerState | null>('/sessions/active')
+      .then((active) => {
+        if (!active) return;
+        let remainingSeconds = active.remainingSeconds;
+        if (active.status === 'running') {
+          const elapsedSinceUpdate = Math.floor(
+            (Date.now() - new Date(active.updatedAt).getTime()) / 1000,
+          );
+          remainingSeconds = Math.max(0, active.remainingSeconds - elapsedSinceUpdate);
+        }
+        const stillRunning = active.status === 'running' && remainingSeconds > 0;
+        setMode(active.mode);
+        setCycle(active.cycle);
+        setSelectedSubjectId(active.subjectId);
+        totalRef.current = active.totalSeconds;
+        setRemaining(remainingSeconds);
+        setRunning(stillRunning);
+        startedAtRef.current = stillRunning
+          ? new Date(Date.now() - (active.totalSeconds - remainingSeconds) * 1000)
+          : null;
+      })
+      .catch(() => {
+        // sincronizacao e um extra - falha silenciosa, timer local continua ok
+      });
+  }, [isPremium]);
 
   useEffect(() => {
     if (!running) {
@@ -150,6 +233,7 @@ export function TimerPage() {
         await api.post<PomodoroSession>('/sessions', {
           subjectId:
             finishedMode === 'FOCUS' ? (selectedSubjectId ?? undefined) : undefined,
+          taskId: finishedMode === 'FOCUS' ? (selectedTaskId ?? undefined) : undefined,
           type: finishedMode,
           durationSeconds: elapsedSeconds,
           completed,
@@ -166,19 +250,23 @@ export function TimerPage() {
           console.error('Falha ao registrar sessão:', err.message);
       }
     },
-    [selectedSubjectId, loadStreak, loadTodayBreakdown],
+    [selectedSubjectId, selectedTaskId, loadStreak, loadTodayBreakdown],
   );
 
-  const advance = useCallback(() => {
+  const advance = useCallback((): { nextMode: Mode; nextCycle: number } => {
+    let nextMode: Mode;
+    let nextCycle = cycle;
     if (mode === 'FOCUS') {
       const nextIsLong = cycle % settings.cyclesBeforeLongBreak === 0;
-      setMode(nextIsLong ? 'LONG_BREAK' : 'SHORT_BREAK');
+      nextMode = nextIsLong ? 'LONG_BREAK' : 'SHORT_BREAK';
     } else {
-      if (mode === 'LONG_BREAK') setCycle(1);
-      else setCycle((c) => c + 1);
-      setMode('FOCUS');
+      nextCycle = mode === 'LONG_BREAK' ? 1 : cycle + 1;
+      nextMode = 'FOCUS';
     }
+    setMode(nextMode);
+    setCycle(nextCycle);
     startedAtRef.current = null;
+    return { nextMode, nextCycle };
   }, [mode, cycle, settings.cyclesBeforeLongBreak]);
 
   useEffect(() => {
@@ -191,8 +279,22 @@ export function TimerPage() {
             setCelebrating(true);
             setTimeout(() => setCelebrating(false), 1600);
           }
-          advance();
-          setRunning(settings.autoStartNext);
+          const { nextMode, nextCycle } = advance();
+          const shouldAutoStart = settings.autoStartNext;
+          setRunning(shouldAutoStart);
+          // totalRef.current so eh corrigido pro novo modo por um efeito separado (e
+          // so quando !running) - usa durationFor aqui pra nao propagar um valor
+          // desatualizado pros outros dispositivos, mesmo que o estado local (que ja
+          // se comporta assim hoje) so se corrija no proximo render.
+          const nextTotal = durationFor(nextMode, settings);
+          emitTimerSync(shouldAutoStart ? 'timer:start' : 'timer:finish', {
+            subjectId: selectedSubjectIdRef.current,
+            mode: nextMode,
+            cycle: nextCycle,
+            remainingSeconds: nextTotal,
+            totalSeconds: nextTotal,
+            status: shouldAutoStart ? 'running' : 'paused',
+          });
           return totalRef.current;
         }
         return r - 1;
@@ -203,23 +305,53 @@ export function TimerPage() {
   }, [running, mode]);
 
   function toggleRun() {
+    const wasFreshStart = !running && remaining === totalRef.current;
     if (!running && startedAtRef.current === null) {
       startedAtRef.current = new Date();
     }
-    setRunning((r) => !r);
+    const nextRunning = !running;
+    setRunning(nextRunning);
+    emitTimerSync(
+      nextRunning ? (wasFreshStart ? 'timer:start' : 'timer:resume') : 'timer:pause',
+      {
+        subjectId: selectedSubjectId,
+        mode,
+        cycle,
+        remainingSeconds: remaining,
+        totalSeconds: totalRef.current,
+        status: nextRunning ? 'running' : 'paused',
+      },
+    );
   }
 
   function skip() {
     const elapsed = totalRef.current - remaining;
     if (elapsed > 0) logSession(mode, elapsed, false);
     setRunning(false);
-    advance();
+    const { nextMode, nextCycle } = advance();
+    const nextTotal = durationFor(nextMode, settings);
+    emitTimerSync('timer:finish', {
+      subjectId: selectedSubjectId,
+      mode: nextMode,
+      cycle: nextCycle,
+      remainingSeconds: nextTotal,
+      totalSeconds: nextTotal,
+      status: 'paused',
+    });
   }
 
   function reset() {
     setRunning(false);
     startedAtRef.current = null;
     setRemaining(totalRef.current);
+    emitTimerSync('timer:pause', {
+      subjectId: selectedSubjectId,
+      mode,
+      cycle,
+      remainingSeconds: totalRef.current,
+      totalSeconds: totalRef.current,
+      status: 'paused',
+    });
   }
 
   const elapsed = totalRef.current - remaining;
@@ -240,7 +372,18 @@ export function TimerPage() {
       {subjects.map((s: Subject) => (
         <button
           key={s.id}
-          onClick={() => setSelectedSubjectId(s.id === selectedSubjectId ? null : s.id)}
+          onClick={() => {
+            const next = s.id === selectedSubjectId ? null : s.id;
+            setSelectedSubjectId(next);
+            emitTimerSync('timer:subjectChange', {
+              subjectId: next,
+              mode,
+              cycle,
+              remainingSeconds: remaining,
+              totalSeconds: totalRef.current,
+              status: running ? 'running' : 'paused',
+            });
+          }}
           className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] transition-colors"
           style={{
             borderColor: s.id === selectedSubjectId ? s.color : 'var(--color-divider)',
@@ -313,9 +456,16 @@ export function TimerPage() {
               : 'grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]'
           }
         >
-          <div className="flex flex-col items-center gap-6">
+          {/* max-w fixo aqui (nao so no anel abaixo) - o clamp do anel usa vw, que
+              ignora a coluna de 320px da sidebar no layout Painel. Sem este teto
+              compartilhado, o Zen (sem sidebar disputando espaco) deixava o anel
+              crescer mais que no Painel na MESMA largura de janela. */}
+          <div className="flex w-full max-w-[640px] flex-col items-center gap-6">
             <Foki state={timerFokiState} size={56} />
-            <div className="relative aspect-square w-full max-w-[340px]">
+            <div
+              className="relative aspect-square w-full"
+              style={{ maxWidth: 'clamp(340px, 30vw, 560px)' }}
+            >
               <svg viewBox="0 0 220 220" className="w-full -rotate-90">
                 <circle
                   cx="110"
@@ -341,7 +491,10 @@ export function TimerPage() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-                <div className="font-heading text-[56px] leading-none tracking-tight tabular-nums">
+                <div
+                  className="font-heading leading-none tracking-tight tabular-nums"
+                  style={{ fontSize: 'clamp(56px, 5vw, 92px)' }}
+                >
                   {formatClock(remaining)}
                 </div>
                 {selectedSubjectId && (
@@ -354,6 +507,11 @@ export function TimerPage() {
                       }}
                     />
                     {subjects.find((s) => s.id === selectedSubjectId)?.name}
+                  </div>
+                )}
+                {activeTask && (
+                  <div className="mt-0.5 max-w-[220px] truncate text-[11px] text-accent">
+                    {activeTask.title}
                   </div>
                 )}
               </div>
@@ -396,37 +554,86 @@ export function TimerPage() {
                 {subjectPicker}
               </div>
 
-              {todayBreakdown && todayBreakdown.subjects.length > 0 && (
+              {selectedSubjectId && pendingTasks.length > 0 && (
+                <div className="card p-6">
+                  <h6 className="mb-4">Tarefa ativa</h6>
+                  <div className="flex flex-col gap-1.5">
+                    {pendingTasks.map((task) => {
+                      const isActive = task.id === selectedTaskId;
+                      return (
+                        <div key={task.id} className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedTaskId(isActive ? null : task.id)}
+                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors"
+                            style={
+                              isActive
+                                ? {
+                                    background: 'var(--color-accent-tint)',
+                                    color: 'var(--color-accent)',
+                                  }
+                                : undefined
+                            }
+                          >
+                            {task.title}
+                          </button>
+                          {isActive && (
+                            <button
+                              className="btn btn-ghost btn-icon flex-none"
+                              title="Marcar como concluída"
+                              onClick={() => {
+                                toggleSubjectTask(task.id, true);
+                                setSelectedTaskId(null);
+                              }}
+                            >
+                              <Check size={15} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {subjects.length > 0 && (
                 <div className="card p-6">
                   <h6 className="mb-4">Hoje</h6>
                   <div className="flex flex-col gap-3">
-                    {todayBreakdown.subjects.map((s) => (
-                      <div key={s.subjectId ?? 'none'}>
-                        <div className="mb-1 flex justify-between text-[13px]">
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="h-1.5 w-1.5 rounded-full"
-                              style={{ background: s.color ?? 'var(--f-muted)' }}
-                            />
-                            {s.name}
-                          </span>
-                          <span className="tabular-nums text-muted">
-                            {s.minutes < 60
-                              ? `${s.minutes}m`
-                              : `${Math.floor(s.minutes / 60)}h ${s.minutes % 60}m`}
-                          </span>
+                    {subjects.map((s) => {
+                      const minutesToday =
+                        todayBreakdown?.subjects.find((b) => b.subjectId === s.id)
+                          ?.minutes ?? 0;
+                      // Meta semanal como fatia proporcional do dia (meta/7) - nunca
+                      // um valor fixo arbitrario. Sem meta definida, so mostra o
+                      // tempo, sem barra (nao ha referencia pra comparar contra).
+                      const goalProgress = s.weeklyGoalMinutes
+                        ? Math.min((minutesToday / (s.weeklyGoalMinutes / 7)) * 100, 100)
+                        : null;
+                      return (
+                        <div key={s.id}>
+                          <div className="mb-1 flex justify-between text-[13px]">
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{ background: s.color }}
+                              />
+                              {s.name}
+                            </span>
+                            <span className="tabular-nums text-muted">
+                              {formatMinutes(minutesToday)}
+                            </span>
+                          </div>
+                          {goalProgress !== null && (
+                            <div className="h-1 overflow-hidden rounded-full bg-track">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${goalProgress}%`, background: s.color }}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-track">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${s.percentage}%`,
-                              background: s.color ?? 'var(--f-muted)',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

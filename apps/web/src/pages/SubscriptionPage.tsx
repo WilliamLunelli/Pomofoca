@@ -1,4 +1,4 @@
-import { CloudCheck, DownloadSimple, XCircle } from '@phosphor-icons/react';
+import { CloudCheck, DownloadSimple, LockOpen } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 
 import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
@@ -65,7 +65,7 @@ export function SubscriptionPage() {
 
   return (
     <div className="p-6 md:p-8">
-      <div className="max-w-[980px]">
+      <div className="mx-auto max-w-[980px]">
         <h3 className="mb-3 max-w-[26ch] text-2xl">
           Seu histórico completo custa menos que um café.
         </h3>
@@ -96,7 +96,7 @@ export function SubscriptionPage() {
 
         <div className="flex flex-wrap gap-8 text-xs text-muted">
           <span className="flex items-center gap-1.5">
-            <XCircle size={14} /> Cancele quando quiser
+            <LockOpen size={14} /> Cancele quando quiser
           </span>
           <span className="flex items-center gap-1.5">
             <CloudCheck size={14} /> Dados sincronizados em todos os dispositivos

@@ -42,7 +42,21 @@ interface ApiFailure {
 
 let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshTokens(): Promise<boolean> {
+/**
+ * Renova o par de tokens via /auth/refresh. Exportada (alem do uso interno no
+ * interceptor de 401 do apiFetch) pra permitir renovacao proativa fora de uma
+ * request REST - ex: useTimerSync reconectando o socket antes do access token
+ * (15min) expirar. `refreshPromise` garante uma unica chamada em voo mesmo se
+ * ambos os caminhos pedirem renovacao ao mesmo tempo.
+ */
+export async function refreshTokens(): Promise<boolean> {
+  refreshPromise ??= doRefreshTokens().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+async function doRefreshTokens(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
@@ -91,10 +105,7 @@ export async function apiFetch<T>(
   let response = await doFetch();
 
   if (response.status === 401 && !skipAuth && getRefreshToken()) {
-    refreshPromise ??= refreshTokens().finally(() => {
-      refreshPromise = null;
-    });
-    const refreshed = await refreshPromise;
+    const refreshed = await refreshTokens();
     if (refreshed) {
       response = await doFetch();
     }
@@ -115,5 +126,6 @@ export const api = {
     apiFetch<T>(path, { method: 'POST', body, skipAuth: opts?.skipAuth }),
   patch: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) =>
+    apiFetch<T>(path, { method: 'DELETE', body }),
 };
