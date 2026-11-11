@@ -1,4 +1,5 @@
 import {
+  CalendarBlank,
   ChartLineUp,
   FlagBanner,
   GearSix,
@@ -12,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 const NAV_ITEMS = [
   { to: '/timer', label: 'Timer', icon: TimerIcon },
   { to: '/subjects', label: 'Matérias', icon: Books },
+  { to: '/routine', label: 'Rotina', icon: CalendarBlank },
   { to: '/reports', label: 'Relatórios', icon: ChartLineUp },
   { to: '/settings', label: 'Configurações', icon: GearSix },
 ];
@@ -93,7 +95,15 @@ export function AppShell() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
-        <Outlet />
+        {/* Sem isso o conteudo ficava com largura intrinseca, colado a esquerda,
+            em monitores grandes (4K) - um vazio enorme sobrava a direita/embaixo.
+            Paginas que ja tem seu proprio max-w mais estreito (formularios,
+            listas) continuam mais estreitas que isso, mas precisam de mx-auto
+            nelas mesmas pra se centralizar dentro deste container, senao so
+            trocam "colado na borda da tela" por "colado na borda deste box". */}
+        <div className="mx-auto max-w-[1600px]">
+          <Outlet />
+        </div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-divider bg-surface md:hidden">

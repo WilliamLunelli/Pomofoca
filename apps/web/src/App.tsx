@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { RoutinePage } from '@/pages/RoutinePage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { SubjectsPage } from '@/pages/SubjectsPage';
 import { SubscriptionCallbackPage } from '@/pages/SubscriptionCallbackPage';
@@ -44,6 +45,7 @@ export default function App() {
         <Route element={<ProtectedLayout />}>
           <Route path="/timer" element={<TimerPage />} />
           <Route path="/subjects" element={<SubjectsPage />} />
+          <Route path="/routine" element={<RoutinePage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/subscription" element={<SubscriptionPage />} />
