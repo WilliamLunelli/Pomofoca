@@ -1,0 +1,28 @@
+{$DOMAIN} {
+	# Socket.io do timer sync conecta com `io({ path: '/socket.io' })`, sem host -
+	# same-origin, entao chega aqui primeiro e precisa ir pro container da api, nao
+	# pro nginx do container web (que nem tem esse path configurado, so /api/).
+	# reverse_proxy do Caddy já repassa Connection/Upgrade por padrão em long-polling
+	# e websocket, mas fixamos explicitamente aqui pra nao depender desse
+	# comportamento implicito - se algum dia isso rodar atras de outro proxy/CDN
+	# antes do Caddy, essas headers continuam sendo forcadas do jeito certo.
+	handle /socket.io/* {
+		reverse_proxy api:3333 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy api:3333 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}

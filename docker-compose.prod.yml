@@ -1,0 +1,95 @@
+# Rodar sempre com --env-file, senao o docker compose so substitui ${VAR} aqui
+# neste arquivo a partir de um .env (default) ou do shell - "env_file:" dentro de
+# um servico so injeta variavel DENTRO do container, nao serve pra resolver
+# ${POSTGRES_USER}/${VITE_GOOGLE_CLIENT_ID}/${DOMAIN} etc neste proprio arquivo:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pomofoca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pomofoca}
+      POSTGRES_DB: ${POSTGRES_DB:-pomofoca}
+    # Sem "ports" aqui de proposito - em producao o Postgres so precisa ser
+    # alcancavel pelos outros containers dentro da rede interna do compose, nunca
+    # exposto no host.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pomofoca}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Um container so pra tudo (HTTP + Socket.io + notificacoes/insights/timer
+  # completion) - hoje o unico mecanismo que roda de fato fora desse processo
+  # e reports.worker.ts (fila 'reports'), e ela ainda nao tem nenhum produtor de
+  # job real (PDF export nao foi implementado) - nao ha motivo pra um container
+  # worker dedicado neste MVP. Ver nota no CLAUDE.md/resposta sobre o
+  # worker-notifications do docker-compose.yml de dev estar quebrado (chama um
+  # arquivo que so exporta uma funcao, sem nenhuma auto-execucao no topo do
+  # modulo - nao inicia nada).
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pomofoca}:${POSTGRES_PASSWORD:-pomofoca}@postgres:5432/${POSTGRES_DB:-pomofoca}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Sem "ports" publicado no host - so o Caddy fala com a api, via rede interna
+    # do compose (nome do servico "api", porta 3333).
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Vite inlina isso no bundle em tempo de BUILD - precisa vir daqui, um
+        # env_file/environment no container final nao adianta (e estatico,
+        # servido pelo nginx, sem processo Node pra ler variavel nenhuma).
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY}
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

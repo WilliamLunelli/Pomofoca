@@ -11,6 +11,6 @@ prisma
   .$connect()
   .then(() => logger.info('Database connected'))
   .catch((error) => {
-    logger.error({ error }, 'Failed to connect to database');
+    logger.error({ err: error }, 'Failed to connect to database');
     process.exit(1);
   });
