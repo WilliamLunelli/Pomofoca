@@ -31,6 +31,10 @@ const envSchema = z.object({
   PREMIUM_PLAN_CURRENCY: z.string().default('BRL'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  VAPID_PUBLIC_KEY: z.string(),
+  VAPID_PRIVATE_KEY: z.string(),
+  VAPID_SUBJECT: z.string(),
 });
 
 const parsed = envSchema.safeParse(process.env);

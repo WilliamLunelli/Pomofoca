@@ -1,10 +1,208 @@
-import { Minus, MoonStars, Plus, SunDim } from '@phosphor-icons/react';
+import { Bell, Check, Minus, MoonStars, Plus, SunDim } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { usePomodoroSettings } from '@/hooks/usePomodoroSettings';
-import { ACCENT_PRESETS } from '@/lib/color';
+import { ACCENT_PRESETS, getReadableTextColor } from '@/lib/color';
+import { api, ApiError } from '@/lib/api';
+import type { NotificationPreferences } from '@/lib/types';
+import {
+  getPushStatus,
+  sendTestNotification,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushSupportStatus,
+} from '@/lib/push';
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className="flex w-[42px] flex-none justify-start rounded-full p-0.5 transition-colors"
+      style={{
+        justifyContent: checked ? 'flex-end' : 'flex-start',
+        background: checked ? 'var(--color-accent)' : 'var(--f-track)',
+      }}
+    >
+      <span
+        className="h-[18px] w-[18px] rounded-full bg-surface"
+        style={{ boxShadow: 'var(--shadow-sm)' }}
+      />
+    </button>
+  );
+}
+
+const PREFERENCE_LABELS: {
+  key: keyof Pick<
+    NotificationPreferences,
+    'dailyReminderEnabled' | 'streakRiskEnabled' | 'weeklySummaryEnabled'
+  >;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    key: 'dailyReminderEnabled',
+    label: 'Lembrete diário',
+    hint: 'No horário em que você costuma estudar, se ainda não estudou hoje',
+  },
+  {
+    key: 'streakRiskEnabled',
+    label: 'Sequência em risco',
+    hint: 'Aviso à noite se sua streak ainda não foi mantida hoje',
+  },
+  {
+    key: 'weeklySummaryEnabled',
+    label: 'Resumo semanal',
+    hint: 'Total de horas da semana, comparado com a anterior',
+  },
+];
+
+function NotificationsSection() {
+  const [status, setStatus] = useState<PushSupportStatus | 'loading'>('loading');
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testSent, setTestSent] = useState(false);
+
+  useEffect(() => {
+    getPushStatus().then(setStatus);
+    api
+      .get<NotificationPreferences>('/notifications/preferences')
+      .then(setPreferences)
+      .catch(() => {});
+  }, []);
+
+  async function handleEnable() {
+    setError(null);
+    setBusy(true);
+    try {
+      await subscribeToPush();
+      setStatus(await getPushStatus());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível ativar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisable() {
+    setBusy(true);
+    try {
+      await unsubscribeFromPush();
+      setStatus(await getPushStatus());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePreference(key: (typeof PREFERENCE_LABELS)[number]['key']) {
+    if (!preferences) return;
+    const next = { [key]: !preferences[key] };
+    setPreferences({ ...preferences, ...next });
+    try {
+      await api.patch<NotificationPreferences>('/notifications/preferences', next);
+    } catch {
+      setPreferences(preferences); // reverte em caso de erro
+    }
+  }
+
+  async function handleTest() {
+    setError(null);
+    try {
+      await sendTestNotification();
+      setTestSent(true);
+      setTimeout(() => setTestSent(false), 3000);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível enviar.');
+    }
+  }
+
+  if (status === 'unsupported') {
+    return (
+      <p className="text-xs text-muted">Seu navegador não suporta notificações push.</p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="card flex items-center gap-6 p-6">
+        <Bell size={20} className="flex-none text-accent" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm">
+            {status === 'subscribed' ? 'Notificações ativadas' : 'Ativar notificações'}
+          </div>
+          <div className="text-[11px] text-muted">
+            {status === 'denied'
+              ? 'Bloqueadas nas permissões do navegador.'
+              : status === 'subscribed'
+                ? 'Este dispositivo recebe notificações do Pomofoca.'
+                : 'Receba lembretes e avisos de sequência neste dispositivo.'}
+          </div>
+        </div>
+        {status === 'subscribed' ? (
+          <button
+            className="btn btn-secondary flex-none"
+            onClick={handleDisable}
+            disabled={busy}
+          >
+            Desativar
+          </button>
+        ) : (
+          <button
+            className="btn btn-primary flex-none"
+            onClick={handleEnable}
+            disabled={busy || status === 'denied'}
+          >
+            Ativar
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-cta">{error}</p>}
+
+      {status === 'subscribed' && preferences && (
+        <>
+          <div className="card px-6 py-1">
+            {PREFERENCE_LABELS.map((item, i) => (
+              <div
+                key={item.key}
+                className="flex items-center gap-6 py-4"
+                style={{
+                  borderBottom:
+                    i < PREFERENCE_LABELS.length - 1
+                      ? '1px solid var(--color-divider)'
+                      : 'none',
+                }}
+              >
+                <div className="flex-1 text-sm">
+                  {item.label}
+                  <div className="text-[11px] text-muted">{item.hint}</div>
+                </div>
+                <Toggle
+                  checked={preferences[item.key]}
+                  onChange={() => togglePreference(item.key)}
+                />
+              </div>
+            ))}
+          </div>
+          <button className="btn btn-ghost self-start" onClick={handleTest}>
+            {testSent ? (
+              <>
+                <Check size={14} /> Enviado
+              </>
+            ) : (
+              'Enviar notificação de teste'
+            )}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 function initials(name: string): string {
   return name
@@ -51,7 +249,7 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="max-w-[660px] p-6 md:p-8">
+    <div className="mx-auto max-w-[660px] p-6 md:p-8">
       <h3 className="mb-8 text-xl">Configurações</h3>
 
       <div className="flex flex-col gap-8">
@@ -103,42 +301,20 @@ export function SettingsPage() {
                   Sem precisar apertar "Continuar"
                 </div>
               </div>
-              <button
-                onClick={() => update('autoStartNext', !settings.autoStartNext)}
-                className="flex w-[42px] flex-none justify-start rounded-full border p-0.5 transition-all"
-                style={{
-                  borderColor: settings.autoStartNext
-                    ? 'var(--color-accent)'
-                    : 'var(--color-divider)',
-                  background: settings.autoStartNext
-                    ? 'var(--color-accent)'
-                    : 'transparent',
-                  justifyContent: settings.autoStartNext ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <span className="h-[18px] w-[18px] rounded-full bg-surface" />
-              </button>
+              <Toggle
+                checked={settings.autoStartNext}
+                onChange={() => update('autoStartNext', !settings.autoStartNext)}
+              />
             </div>
             <div className="flex items-center gap-6 py-4">
               <div className="flex-1 text-sm">
                 Som ao concluir ciclo
                 <div className="text-[11px] text-muted">Notificação sonora discreta</div>
               </div>
-              <button
-                onClick={() => update('soundEnabled', !settings.soundEnabled)}
-                className="flex w-[42px] flex-none justify-start rounded-full border p-0.5 transition-all"
-                style={{
-                  borderColor: settings.soundEnabled
-                    ? 'var(--color-accent)'
-                    : 'var(--color-divider)',
-                  background: settings.soundEnabled
-                    ? 'var(--color-accent)'
-                    : 'transparent',
-                  justifyContent: settings.soundEnabled ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <span className="h-[18px] w-[18px] rounded-full bg-surface" />
-              </button>
+              <Toggle
+                checked={settings.soundEnabled}
+                onChange={() => update('soundEnabled', !settings.soundEnabled)}
+              />
             </div>
           </div>
         </section>
@@ -175,19 +351,34 @@ export function SettingsPage() {
           <div className="mb-4">
             <label className="mb-2 block text-xs text-muted">Cor de destaque</label>
             <div className="flex gap-2">
-              {ACCENT_PRESETS.map((preset) => (
-                <button
-                  key={preset.hex}
-                  title={preset.name}
-                  onClick={() => prefs.setAccentColor(preset.hex)}
-                  className="h-7 w-7 rounded-full border-2"
-                  style={{
-                    background: preset.hex,
-                    borderColor:
-                      prefs.accentColor === preset.hex ? preset.hex : 'transparent',
-                  }}
-                />
-              ))}
+              {ACCENT_PRESETS.map((preset) => {
+                const selected = prefs.accentColor === preset.hex;
+                return (
+                  <button
+                    key={preset.hex}
+                    title={preset.name}
+                    aria-label={preset.name}
+                    aria-pressed={selected}
+                    onClick={() => prefs.setAccentColor(preset.hex)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full transition-transform"
+                    style={{
+                      background: preset.hex,
+                      transform: selected ? 'scale(1.12)' : 'scale(1)',
+                      boxShadow: selected
+                        ? '0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text)'
+                        : 'none',
+                    }}
+                  >
+                    {selected && (
+                      <Check
+                        size={14}
+                        weight="bold"
+                        color={getReadableTextColor(preset.hex)}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -222,6 +413,23 @@ export function SettingsPage() {
               </button>
             ))}
           </div>
+        </section>
+
+        <section>
+          <h6 className="mb-4">Notificações</h6>
+          {user?.plan === 'PREMIUM' ? (
+            <NotificationsSection />
+          ) : (
+            <div className="card flex items-center gap-6 p-6">
+              <Bell size={20} className="flex-none text-muted" />
+              <div className="min-w-0 flex-1 text-sm text-muted">
+                Lembretes e avisos de sequência são um recurso Premium.
+              </div>
+              <Link to="/subscription" className="btn btn-secondary flex-none">
+                Ver planos
+              </Link>
+            </div>
+          )}
         </section>
 
         <section>

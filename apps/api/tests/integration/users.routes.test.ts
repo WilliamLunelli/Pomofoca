@@ -13,7 +13,7 @@ jest.mock('../../src/config/redis', () => ({
 import { app } from '../../src/app';
 import { signAccessToken } from '../../src/shared/utils/jwt';
 
-const authHeader = `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan: 'FREE' })}`;
+const authHeader = `Bearer ${signAccessToken({ sub: 'user-1', email: 'ada@example.com', plan: 'FREE', timezone: 'America/Sao_Paulo' })}`;
 
 describe('users routes', () => {
   it('rejects unauthenticated requests', async () => {
