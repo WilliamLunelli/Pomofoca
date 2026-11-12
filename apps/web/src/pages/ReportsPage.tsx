@@ -274,8 +274,8 @@ export function ReportsPage() {
       </div>
       {insightsLocked ? (
         <LockedPreview text="Insights adaptativos são exclusivos do Premium">
-          <div className="flex flex-col gap-4">
-            {[0, 1].map((i) => (
+          <div className="flex min-h-[160px] flex-col justify-center gap-4">
+            {[0, 1, 2].map((i) => (
               <div key={i} className="flex gap-3">
                 <div className="mt-0.5 h-[18px] w-[18px] flex-none rounded-full bg-track" />
                 <div className="flex-1">

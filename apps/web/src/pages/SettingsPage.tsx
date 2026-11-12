@@ -28,8 +28,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       }}
     >
       <span
-        className="switch-thumb h-[18px] w-[18px] rounded-full bg-surface"
+        className="switch-thumb h-[18px] w-[18px] rounded-full"
         style={{
+          // Desligado: thumb sempre claro (neutral-100 e fixo nos dois temas), senao
+          // some sobre o trilho escuro. Ligado: mantem o surface de antes.
+          background: checked ? 'var(--color-surface)' : 'var(--color-neutral-100)',
           boxShadow: 'var(--shadow-sm)',
           transform: checked ? 'translateX(20px)' : 'translateX(0)',
         }}

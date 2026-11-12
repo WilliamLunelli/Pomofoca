@@ -285,7 +285,7 @@ export function RoutinePage() {
                         {blockHeight(block.startTime, block.endTime) >= 34 && (
                           <div
                             className="truncate tabular-nums"
-                            style={{ color: 'var(--f-muted)' }}
+                            style={{ color: 'var(--color-text)', opacity: 0.75 }}
                           >
                             {formatShortTime(block.startTime)} às{' '}
                             {formatShortTime(block.endTime)}
