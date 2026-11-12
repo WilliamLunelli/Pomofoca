@@ -1,4 +1,4 @@
-import { Books, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
+import { Books, CalendarBlank, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -31,6 +31,7 @@ const INSIGHT_ICON: Record<InsightItem['type'], typeof Clock> = {
   weak_day: CalendarX,
   neglected_subject: Books,
   interruption_pattern: Warning,
+  routine_mismatch: CalendarBlank,
 };
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all';

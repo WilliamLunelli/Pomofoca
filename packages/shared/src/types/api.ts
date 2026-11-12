@@ -133,7 +133,12 @@ export interface NotificationPreferences {
 }
 
 export interface InsightItem {
-  type: 'peak_hours' | 'weak_day' | 'neglected_subject' | 'interruption_pattern';
+  type:
+    | 'peak_hours'
+    | 'weak_day'
+    | 'neglected_subject'
+    | 'interruption_pattern'
+    | 'routine_mismatch';
   title: string;
   description: string;
   dataPoints: number;
