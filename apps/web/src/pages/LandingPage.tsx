@@ -1,44 +1,40 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChartLineUp, Flame, Books, Timer as TimerIcon } from '@phosphor-icons/react';
+import {
+  Books,
+  CalendarBlank,
+  ChartLineUp,
+  Flame,
+  Lightbulb,
+  Timer as TimerIcon,
+  WifiSlash,
+} from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 
 import { Foki } from '@/components/Foki';
 import { DemoHeatmap } from '@/components/landing/DemoHeatmap';
+import { DemoSubjects } from '@/components/landing/DemoSubjects';
 import { DemoTimer } from '@/components/landing/DemoTimer';
+import { DemoWeek } from '@/components/landing/DemoWeek';
 import { LandingHeader } from '@/components/landing/LandingHeader';
 import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
 import { useAuth } from '@/context/AuthContext';
 import { YEARLY_MONTHLY_EQUIVALENT, YEARLY_PRICE, formatBRL } from '@/lib/plans';
 
-// Grades decorativas (mesma rampa de 5 niveis do heatmap real em ReportsPage),
-// niveis fixos - nao vem de dados, so ilustram o recurso.
-const HEATMAP_LEVEL_COLOR = [
-  'var(--f-track)',
-  'var(--color-accent-200)',
-  'var(--color-accent-400)',
-  'var(--color-accent-600)',
-  'var(--color-accent-800)',
-];
-const STRIP_HEATMAP = [
-  0, 0, 1, 0, 1, 0, 2, 1, 0, 2, 1, 2, 1, 3, 2, 1, 3, 2, 4, 3, 2, 4, 3, 4, 3, 4, 4, 3, 4,
-  4, 3, 4, 4, 4, 4,
-];
-
-const SUPPORTING_FEATURES = [
-  {
-    icon: TimerIcon,
-    title: 'Timer que funciona offline',
-    body: 'Ciclos de foco e pausa configuráveis, instalável como app, continua rodando mesmo sem internet.',
-  },
+const STEPS = [
   {
     icon: Books,
-    title: 'Uma matéria por sessão',
-    body: 'Cada ciclo fica ligado à matéria certa, com cor e meta semanal próprias.',
+    title: 'Escolha a matéria',
+    body: 'Cada ciclo fica ligado a uma matéria, com cor e meta semanal.',
   },
   {
-    icon: Flame,
-    title: 'Sequência que não deixa você parar',
-    body: 'A Foki acompanha sua streak e comemora quando você bate um novo recorde.',
+    icon: TimerIcon,
+    title: 'Foque no ciclo',
+    body: 'Foco e pausa no seu ritmo, sem distração e sem precisar de internet.',
+  },
+  {
+    icon: ChartLineUp,
+    title: 'Veja onde foi seu tempo',
+    body: 'Relatórios por matéria e por período mostram o que você realmente estudou.',
   },
 ];
 
@@ -65,12 +61,22 @@ function useRevealOnScroll<T extends HTMLElement>() {
   return { ref, visible };
 }
 
-function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
+function Reveal({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
   const { ref, visible } = useRevealOnScroll<HTMLDivElement>();
   return (
     <div
       ref={ref}
-      className={visible ? 'reveal reveal-visible' : 'reveal'}
+      className={[visible ? 'reveal reveal-visible' : 'reveal', className]
+        .filter(Boolean)
+        .join(' ')}
       style={{ transitionDelay: visible ? `${delay}ms` : '0ms' }}
     >
       {children}
@@ -149,58 +155,146 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 py-16 md:px-12">
-        <div className="mx-auto max-w-5xl">
+      {/* Para onde foi seu tempo: bento de 4 celulas (2+1 / 2+1 no desktop) */}
+      <section className="px-6 py-20 md:px-12">
+        <div className="mx-auto max-w-6xl">
           <Reveal>
-            <h2 className="mb-12 max-w-lg text-2xl">
-              Não é só um timer. É onde seu tempo de estudo vira números.
-            </h2>
+            <h2 className="mb-3 max-w-lg text-2xl">Para onde foi seu tempo</h2>
+            <p className="mb-10 max-w-xl text-sm text-muted">
+              Cada sessão vira dado: ano inteiro, matérias, padrões e sequência no mesmo
+              lugar.
+            </p>
           </Reveal>
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-            <Reveal>
-              <div className="card flex h-full flex-col gap-5 p-8">
-                <ChartLineUp size={22} className="text-accent" />
-                <h3 className="text-lg font-heading">
-                  Relatórios que mostram o progresso
-                </h3>
-                <p className="max-w-md text-sm text-muted">
-                  Heatmap anual, distribuição por matéria e evolução semanal, pra você
-                  enxergar em segundos se está estudando o que precisa, ou só o que é mais
-                  fácil.
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Reveal className="lg:col-span-2">
+              <div className="card flex h-full flex-col gap-4 p-6">
+                <DemoHeatmap />
+                <p className="mt-auto text-sm text-muted">
+                  Um ano de estudo num olhar só.
                 </p>
-                <div className="mt-auto grid grid-cols-[repeat(35,minmax(0,1fr))] gap-[3px] pt-2">
-                  {STRIP_HEATMAP.map((level, i) => (
-                    <div
-                      key={i}
-                      className="aspect-square rounded-[2px]"
-                      style={{ background: HEATMAP_LEVEL_COLOR[level] }}
-                    />
-                  ))}
-                </div>
               </div>
             </Reveal>
-            <div className="divide-y divide-divider">
-              {SUPPORTING_FEATURES.map((f, i) => (
-                <Reveal key={f.title} delay={i * 60}>
-                  <div className="flex gap-4 py-5 first:pt-0">
-                    <f.icon size={20} className="mt-0.5 shrink-0 text-accent" />
-                    <div>
-                      <h3 className="mb-1 text-[15px] font-heading">{f.title}</h3>
-                      <p className="text-[13px] text-muted">{f.body}</p>
-                    </div>
+            <Reveal delay={60}>
+              <div className="card flex h-full flex-col gap-4 p-6">
+                <h3 className="text-[15px] font-heading">Horas por matéria</h3>
+                <DemoSubjects />
+              </div>
+            </Reveal>
+            <Reveal className="lg:col-span-2" delay={60}>
+              <div
+                className="flex h-full flex-col gap-3 rounded-[var(--radius-md)] border border-divider p-6"
+                style={{ background: 'var(--color-accent-tint)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={20} weight="fill" className="text-accent" />
+                  <span className="tag tag-accent">Premium</span>
+                </div>
+                <p className="max-w-xl text-[15px] leading-relaxed">
+                  Você planejou Cálculo às terças, 14:00-16:00, mas estudou por volta de
+                  20h-22h em 3 das últimas 4 semanas. Que tal ajustar o bloco?
+                </p>
+                <p className="mt-auto text-xs text-muted">Baseado em 41 sessões</p>
+              </div>
+            </Reveal>
+            <Reveal delay={120}>
+              <div
+                className="flex h-full items-center justify-between gap-4 rounded-[var(--radius-md)] border border-divider p-6"
+                style={{ background: 'var(--landing-wash)' }}
+              >
+                <div>
+                  <div className="mb-1 flex items-center gap-1.5 text-sm text-muted">
+                    <Flame size={18} weight="fill" className="text-accent" />
+                    Sequência
                   </div>
-                </Reveal>
-              ))}
-            </div>
+                  <div className="font-heading text-5xl leading-none tabular-nums">23</div>
+                  <div className="mt-1 text-sm text-muted">dias seguidos</div>
+                </div>
+                <Foki state="celebrating" size={72} />
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-16 md:px-12">
+      {/* Como funciona: 3 passos num trilho (horizontal no desktop, vertical no mobile) */}
+      <section className="px-6 py-20 md:px-12">
+        <div className="mx-auto max-w-5xl">
+          <Reveal>
+            <h2 className="mb-14 text-center text-2xl">Como funciona</h2>
+          </Reveal>
+          <ol className="relative m-0 grid list-none gap-10 p-0 md:grid-cols-3 md:gap-8">
+            <div
+              aria-hidden="true"
+              className="absolute bottom-6 left-6 top-6 w-px md:bottom-auto md:left-[16.67%] md:right-[16.67%] md:top-6 md:h-px md:w-auto"
+              style={{ background: 'var(--landing-rail)' }}
+            />
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="relative">
+                <Reveal delay={i * 80}>
+                  <div className="flex gap-4 md:flex-col md:items-center md:text-center">
+                    <div
+                      className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-divider bg-surface"
+                      style={{ boxShadow: 'var(--shadow-sm)' }}
+                    >
+                      <s.icon size={22} className="text-accent" />
+                    </div>
+                    <div className="md:max-w-[240px]">
+                      <h3 className="mb-1 text-base font-heading">{s.title}</h3>
+                      <p className="text-[13px] text-muted">{s.body}</p>
+                    </div>
+                  </div>
+                </Reveal>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Diferenciais: texto a esquerda, demonstracao a direita (assimetrico) */}
+      <section className="px-6 py-20 md:px-12">
+        <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
+          <div className="flex flex-col gap-10">
+            <Reveal>
+              <div className="flex gap-4">
+                <WifiSlash size={22} className="mt-0.5 shrink-0 text-accent" />
+                <div>
+                  <h3 className="mb-1 text-lg font-heading">Funciona offline</h3>
+                  <p className="text-sm text-muted">
+                    Instale como app no celular ou no computador. Sem internet, o timer
+                    continua e suas sessões ficam salvas.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal delay={80}>
+              <div className="flex gap-4">
+                <CalendarBlank size={22} className="mt-0.5 shrink-0 text-accent" />
+                <div>
+                  <h3 className="mb-1 flex flex-wrap items-center gap-2 text-lg font-heading">
+                    Rotina da semana
+                    <span className="tag tag-outline">No plano grátis</span>
+                  </h3>
+                  <p className="text-sm text-muted">
+                    Monte uma grade semanal com blocos por matéria e compare o plano com o
+                    que você de fato estudou.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+          <Reveal delay={120}>
+            <div className="card p-5 md:p-6" style={{ boxShadow: 'var(--shadow-md)' }}>
+              <DemoWeek />
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="px-6 py-20 md:px-12">
         <div className="mx-auto max-w-5xl">
           <Reveal>
             <h2 className="mb-2 text-center text-2xl">
-              Grátis pra sempre. Premium quando o histórico importar.
+              Grátis para sempre. Premium quando o histórico importar.
             </h2>
             <p className="mb-10 text-center text-sm text-muted">
               O plano Premium libera o histórico completo por R${formatBRL(YEARLY_PRICE)}
@@ -213,11 +307,45 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="flex flex-col items-center gap-3 border-t border-divider px-6 py-10 text-center md:px-12">
-        <Foki state="sleeping" size={36} />
-        <p className="text-xs text-muted">
-          Pomofoca: feito para quem estuda de verdade.
-        </p>
+      <section className="px-6 py-8 md:px-12">
+        <Reveal>
+          <div
+            className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-[var(--radius-lg)] border border-divider px-6 py-12 text-center md:flex-row md:justify-between md:px-12 md:text-left"
+            style={{ background: 'var(--landing-wash)' }}
+          >
+            <div className="flex flex-col items-center gap-5 md:flex-row md:gap-8">
+              <Foki state="celebrating" size={88} />
+              <h2 className="text-2xl">Seu próximo ciclo começa agora.</h2>
+            </div>
+            <Link to={primaryCtaTo} className="btn btn-primary min-w-[180px] text-[15px]">
+              {primaryCtaLabel}
+            </Link>
+          </div>
+        </Reveal>
+      </section>
+
+      <footer className="mt-12 border-t border-divider px-6 py-10 md:px-12">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-5 md:flex-row">
+          <div className="flex flex-col items-center gap-1 md:items-start">
+            <div className="flex items-center gap-2">
+              <TimerIcon weight="fill" size={20} className="text-accent" />
+              <span className="font-heading text-lg tracking-tight">Pomofoca</span>
+            </div>
+            <p className="text-xs text-muted">
+              Pomofoca, feito para quem estuda de verdade.
+            </p>
+          </div>
+          {!user && (
+            <nav className="flex items-center gap-4 text-sm">
+              <Link to="/login" className="text-muted hover:text-text">
+                Entrar
+              </Link>
+              <Link to="/register" className="text-muted hover:text-text">
+                Criar conta
+              </Link>
+            </nav>
+          )}
+        </div>
       </footer>
     </div>
   );

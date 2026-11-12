@@ -52,6 +52,9 @@
   --landing-track: var(--f-track);
   --landing-muted: #55505c;
   --landing-glow: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  /* Landing: fundo de celula em destaque e trilho dos passos. */
+  --landing-wash: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  --landing-rail: color-mix(in srgb, var(--color-text) 18%, transparent);
 
   --space-1: 2.8px;
   --space-2: 5.6px;
