@@ -5,7 +5,7 @@ import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import { Foki, type FokiState } from '@/components/Foki';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import type { Subscription, User } from '@/lib/types';
+import type { Subscription, User } from '@pomofoca/shared';
 
 type CallbackState = 'checking' | 'approved' | 'pending' | 'rejected';
 

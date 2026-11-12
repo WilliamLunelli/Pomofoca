@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
-import type { RoutineBlock } from '@/lib/types';
+import type { RoutineBlock } from '@pomofoca/shared';
 
 export interface RoutineBlockInput {
   subjectId?: string | null;

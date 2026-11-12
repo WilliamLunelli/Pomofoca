@@ -28,7 +28,7 @@ import type {
   ReportBreakdown,
   ReportStreak,
   Subject,
-} from '@/lib/types';
+} from '@pomofoca/shared';
 
 type Mode = 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
 

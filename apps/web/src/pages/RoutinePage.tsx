@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { useRoutine, type RoutineBlockInput } from '@/hooks/useRoutine';
 import { useSubjects } from '@/hooks/useSubjects';
 import { api, ApiError } from '@/lib/api';
-import type { ReportBreakdown, RoutineBlock } from '@/lib/types';
+import type { ReportBreakdown, RoutineBlock } from '@pomofoca/shared';
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const DAY_LABELS_FULL = [

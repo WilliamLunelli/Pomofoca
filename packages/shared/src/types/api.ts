@@ -1,4 +1,5 @@
-import type { Plan, SessionType } from '@pomofoca/shared';
+import type { Plan } from './plan';
+import type { SessionType } from './session';
 
 export interface User {
   id: string;

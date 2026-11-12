@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
-import type { Task } from '@/lib/types';
+import type { Task } from '@pomofoca/shared';
 
 export function useSubjectTasks(subjectId: string | null) {
   const [tasks, setTasks] = useState<Task[]>([]);

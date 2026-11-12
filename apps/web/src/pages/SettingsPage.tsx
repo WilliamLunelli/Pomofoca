@@ -7,7 +7,7 @@ import { usePreferences } from '@/context/PreferencesContext';
 import { usePomodoroSettings } from '@/hooks/usePomodoroSettings';
 import { ACCENT_PRESETS, getReadableTextColor } from '@/lib/color';
 import { api, ApiError } from '@/lib/api';
-import type { NotificationPreferences } from '@/lib/types';
+import type { NotificationPreferences } from '@pomofoca/shared';
 import {
   getPushStatus,
   sendTestNotification,

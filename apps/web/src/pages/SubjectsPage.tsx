@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSubjects } from '@/hooks/useSubjects';
 import { api, ApiError } from '@/lib/api';
 import { getReadableTextColor, SUBJECT_COLOR_PRESETS } from '@/lib/color';
-import type { Subject } from '@/lib/types';
+import type { Subject } from '@pomofoca/shared';
 
 export function SubjectsPage() {
   const { user } = useAuth();
