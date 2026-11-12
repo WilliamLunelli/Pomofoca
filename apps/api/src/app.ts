@@ -17,10 +17,6 @@ app.use(express.json());
 app.use(pinoHttp({ logger }));
 app.use(defaultRateLimit);
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({ success: true, data: { status: 'ok' } });
-});
-
 app.use('/api', router);
 
 app.use(errorMiddleware);
