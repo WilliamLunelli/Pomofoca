@@ -95,6 +95,7 @@ Bibliotecas de apoio: `helmet`, `cors`, `express-rate-limit`, `pino`/`pino-http`
 src/
 ├── components/
 │   ├── AppShell.tsx              # sidebar (desktop) + nav inferior (mobile)
+│   ├── CountUp.tsx               # número que conta até o valor (KPIs, streak)
 │   ├── Foki.tsx                  # mascote reativo (ver seção própria abaixo)
 │   ├── landing/                  # demos da landing (ver seção "Landing" abaixo)
 │   └── PlanCards.tsx             # os 3 cards de plano, usado em Landing/Onboarding/
@@ -104,6 +105,7 @@ src/
 │   └── PreferencesContext.tsx    # tema, cor de destaque, densidade, fonte
 ├── hooks/
 │   ├── useSubjects.ts
+│   ├── useReducedMotion.ts       # prefers-reduced-motion (Foki, landing, CountUp, Recharts)
 │   └── usePomodoroSettings.ts    # duração dos ciclos - só local, não é campo do backend
 ├── lib/
 │   ├── api.ts                    # fetch wrapper com refresh automático de token
@@ -131,19 +133,27 @@ normal vai direto pra `/timer`, sem passar pelo onboarding.
 ### Foki (`src/components/Foki.tsx`)
 
 Mascote reativo, **não conversacional** — só troca de pose/expressão via prop
-`state: 'idle' | 'focused' | 'celebrating' | 'sad' | 'sleeping'`, sem lógica própria
-de app. SVG inline usando os tokens de cor (se adapta a tema/cor de destaque
-automaticamente). Mapeamento de estado usado hoje:
+`state: 'idle' | 'focused' | 'celebrating' | 'curious' | 'sad' | 'sleeping'`, sem
+lógica própria de app. **Foki 2.0**: SVG inline com silhueta de foca (cabeça e corpo
+numa forma única + cauda), gradientes com ids por instância (`useId`), contorno,
+olhos grandes com brilho e sombra de chão; cores só via tokens (`--foki-*` em
+`tokens.css`, valor por tema, + `--color-accent` em detalhes). Partes animadas
+independentes (só CSS transform/opacity, keyframes `foki-*` em `index.css`): piscar
+em intervalo aleatório 2.5-6s (só em `idle`/`curious`, timer com flag de
+cancelamento), respiração, inclinação de cabeça, nadadeiras. Expressões trocam com
+fade de ~200ms. Brilhos da comemoração são estrelas SVG (nunca emoji). Sob
+`prefers-reduced-motion`: pose estática por estado, sem loops nem estrelas.
+Mapeamento de estado usado hoje:
 - Card de streak (`TimerPage` e `ReportsPage`): `idle` com sequência ativa,
-  `sleeping` quando a sequência está zerada. `sad` existe no componente mas não está
-  ligado a nenhum evento ainda — fica disponível pra uso futuro (ex: relatório sem
-  nenhuma atividade no período)
-- `TimerPage`: `focused` (com fone de ouvido) enquanto um ciclo FOCUS está rodando;
-  `celebrating` (bounce + sparkles, ~1.6s) no instante em que um ciclo FOCUS é
-  concluído; `idle` em qualquer outro caso (pausado, parado, ou durante uma pausa)
+  `sleeping` quando a sequência está zerada
+- `TimerPage` (Foki de 80px "sentado" na borda superior do anel): `focused` (com fone
+  de ouvido) enquanto um ciclo FOCUS roda; `curious` quando pausado no meio de um
+  ciclo; `sad` por ~1.2s ao pular um FOCUS antes do fim; `celebrating` (~1.6s) ao
+  concluir um FOCUS; `idle` no resto. Os timers de `celebrating`/`sad` ficam em refs,
+  são limpos no unmount e por `skip()`/`reset()`
 - Landing: `focused` → `celebrating` no `DemoTimer` do hero (acompanha o ciclo
   acelerado da demo) e `celebrating` nos cards de streak/CTA final. Com
-  `prefers-reduced-motion`, todos caem pra `idle` (via `useReducedMotion`)
+  `prefers-reduced-motion`, todos caem pra `idle` (via `src/hooks/useReducedMotion.ts`)
 
 ### Landing (`src/pages/LandingPage.tsx` + `src/components/landing/`)
 
@@ -170,10 +180,29 @@ var(--color-accent) 10%, transparent)`, então sempre correto nos dois temas por
 deriva do `--color-accent` já theme-aware) + `color: var(--color-accent)` — não usar
 a rampa numérica pra isso. Já aplicado em: nav ativo (`AppShell`), seletor de período
 (`ReportsPage`), `.tag-accent` (usado no badge de desconto do card Premium) e o glow
-atrás do timer (`TimerPage`). O heatmap (`HEATMAP_LEVEL_COLOR` em `ReportsPage`)
-ainda usa a rampa numérica de propósito (precisa de 5 tons bem diferenciados, não um
-tint único) — não foi alterado, pode ter o mesmo problema de contraste no dark mode
-se isso incomodar no futuro.
+atrás do timer (`TimerPage`), chips de matéria selecionados no Timer e o CTA
+"Assinar Premium" da sidebar (`.nav-cta`). O heatmap (`HEATMAP_LEVEL_COLOR` em
+`ReportsPage`) **não usa mais a rampa numérica** (que invertia a progressão no dark
+mode): nível 0 = `--f-track`, níveis 1-4 = `color-mix` de `--color-accent` a
+25/45/70/100%, igual ao `DemoHeatmap` da landing.
+
+### Animações (sistema de movimento)
+
+Só CSS + React simples, sem lib. Tokens em `tokens.css`: `--motion-fast` (150ms),
+`--motion-base` (240ms), `--motion-slow` (420ms), `--ease-out`, `--ease-spring`. No
+`index.css`: entrada de página (wrapper com `key={pathname}` em volta do `<Outlet/>`
+no `AppShell`, fade + translateY), `.stagger` (cards entram em sequência só na
+montagem; nunca aninhar `.stagger`), `.bar-grow` (barras de progresso crescem),
+pop do checkbox de tarefa (`data-pop`, só ao concluir, não na montagem), chama do
+streak tremulando com sequência > 0, glow atrás do anel pulsando só com FOCUS
+rodando, `.btn:active` com scale. Entradas usam `animation-fill-mode: backwards` e
+só translate/opacity — **nunca `scale` em contêiner de gráfico**: o Recharts mede o
+tamanho durante a animação e fixa as barras na largura errada. Por isso o `<Bar>`
+dos gráficos de evolução tem `isAnimationActive={false}` de propósito (o `<Pie>`
+anima, tamanho fixo). `CountUp.tsx`: rAF por ~600ms com cleanup, valor final
+idêntico à formatação original, sem animação sob reduced motion. `PlanCards` só
+anima com a prop `animateIn` (Onboarding/Subscription, não na Landing, que tem
+`.reveal` próprio). Tudo coberto por `@media (prefers-reduced-motion: reduce)`.
 
 **Tipos de resposta da API:** vivem em `packages/shared/src/types/api.ts` (20 tipos:
 `User`, `Subject`, `Task`, `RoutineBlock`, `PomodoroSession`, os de relatório, insights,
@@ -196,6 +225,10 @@ de uso, não dado de estudo).
 - `panel` (padrão) — tudo isso + coluna lateral com card "Hoje" (breakdown por
   matéria hoje, via `GET /reports/breakdown?period=today`, recarregado a cada sessão
   registrada), seletor de som de fundo e card de streak
+
+O cabeçalho ("Ciclo 1 de 4 · hoje 50min") deriva o total de hoje do mesmo breakdown
+(`totalMinutes`, formatado "Ym"/"Xh Ym"). Antes vinha de um estado local que começava
+em 0 a cada visita e só somava sessões feitas naquela visita (mostrava "hoje 00:00").
 
 **Som de fundo** (card "Som de fundo", só no layout `panel`): 4 opções -
 `rain`/`lofi`/`white-noise`/`silence` (padrão), persistido em
@@ -221,6 +254,20 @@ seletor de período):
 Os dois layouts reaproveitam exatamente os mesmos dados já buscados (`summary`,
 `breakdown`, `trend`, `streak`, `heatmap`) — só a apresentação muda, nenhuma request
 extra ao trocar de variante.
+
+No gráfico de evolução, a barra de **hoje** fica em `--color-accent` cheio e as demais
+em ~55% (comparando a data do ponto com hoje no fuso do navegador; se hoje não está
+no array, nada é destacado). Para FREE, heatmap e insights bloqueados mostram uma
+**prévia desfocada** (dados fictícios por seed, `aria-hidden`) com selo de cadeado e
+botão "Desbloquear com Premium" — nunca dado fictício com cara de real.
+
+Outras telas: **Matérias** mostra o progresso semanal de cada matéria com meta
+("Xh Ym de 5h esta semana", barra na cor da matéria, ✓ ao bater), com uma única
+`GET /reports/breakdown?period=week` (carregando: esqueleto; erro: volta pro texto
+"meta: Xh/semana"). **Rotina**: blocos com texto forte e horário ("8h às 10h").
+**Settings**: switch com tokens `--switch-thumb`/`--switch-track` (thumb claro nos dois
+temas). Trilhos de barras/anel no dark usam `--f-track` (12% do texto). Nenhum
+travessão (— ou –) em texto visível do app.
 
 ### Ambiente Windows: bug de dependências opcionais do npm
 
