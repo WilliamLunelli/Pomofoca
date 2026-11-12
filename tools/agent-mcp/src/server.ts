@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { clip, diffStat, tail } from './compress.js';
 import { GATE_CHECKS } from './config.js';
 import { delegate } from './delegate.js';
+import { checkDocs } from './docs-check.js';
 import { logPath, runGate } from './gate.js';
 import { report } from './ledger.js';
 import { closeTask, openTask, requireTask } from './workspace.js';
@@ -159,13 +160,35 @@ server.registerTool(
     inputSchema: {
       taskId,
       instrucao: z.string().optional().describe('Orientação extra (opcional)'),
+      forcar: z
+        .boolean()
+        .optional()
+        .describe(
+          'Chama o worker mesmo se nenhum .md permitido citar os arquivos alterados (padrão: não)',
+        ),
     },
   },
-  ({ taskId: id, instrucao }) =>
-    fromDelegate({
-      role: 'documentacao',
-      taskId: id,
-      instruction: instrucao ?? 'Atualize a documentação afetada pelo diff desta tarefa.',
+  ({ taskId: id, instrucao, forcar }) =>
+    guarded(async () => {
+      const meta = requireTask(id);
+      if (!forcar) {
+        // Sem LLM: se nenhum doc editável cita o que mudou, não há o que o worker fazer.
+        const docs = await checkDocs(meta.dir, meta.base);
+        if (!docs.editable.length) {
+          const prot = docs.protectedHits.length
+            ? ` Docs PROTEGIDOS que citam esses arquivos (o dono do projeto ajusta): ${docs.protectedHits.join(', ')}.`
+            : '';
+          return reply(
+            `Documentação pulada sem LLM: nenhum .md/docs editável cita os ${docs.changed.length} arquivo(s) alterados.${prot} Use forcar=true para chamar o worker mesmo assim.`,
+          );
+        }
+      }
+      return fromDelegate({
+        role: 'documentacao',
+        taskId: id,
+        instruction:
+          instrucao ?? 'Atualize a documentação afetada pelo diff desta tarefa.',
+      });
     }),
 );
 

@@ -106,7 +106,10 @@ Só lê `.agent-logs/`, nunca o código nem `.env`, e só escuta em `127.0.0.1`.
 
 - O gestor recebe **relatórios curtos** (≤ 3.500 caracteres) + `git diff --stat`, nunca o diff inteiro nem logs de teste. Revisores/documentação é que leem o diff.
 - Gate e compressão de logs são **determinísticos** (sem LLM).
-- Orçamento por tarefa: `AGENT_MAX_TOKENS_PER_TASK` (padrão 600k) e `AGENT_MAX_DELEGATIONS_PER_TASK` (padrão 14). Estourou → o servidor recusa e o gestor para e reporta.
+- Orçamento por tarefa: `AGENT_MAX_TOKENS_PER_TASK` (padrão 4M no modo `cli`, 600k no `api`) e `AGENT_MAX_DELEGATIONS_PER_TASK` (padrão 14). Estourou → o servidor recusa e o gestor para e reporta. Mais para UMA tarefa: `.agent-logs/budgets.json`.
+- **Tokens novos × cache:** a cada volta, o CLI reenvia a conversa inteira, e essa parte volta como *leitura de cache* (85–90% do total nas execuções medidas do `agy`). O ledger guarda os dois separados. O orçamento conta `entrada nova + saída + cache × AGENT_CACHE_WEIGHT` (padrão 0,1), e o `custos` e o painel mostram cada parte.
+- **Instruções de economia para o `agy`:** começar pelos arquivos citados, sem explorar a árvore nem rodar `git log/status/diff`; ler cada arquivo inteiro uma vez; testar só o arquivo que importa e esperar o comando terminar; não rodar a suíte completa nem o lint (o gate faz isso).
+- **Documentação sem LLM quando não há o que fazer:** o `documentar` confere antes (por `git grep`) se algum `.md`/`docs/` editável cita os arquivos alterados. Se nenhum citar, responde na hora e lista os docs protegidos que citam (ex.: `CLAUDE.md`). `forcar=true` chama o worker mesmo assim.
 - Cada delegação vai para `.agent-logs/delegations.jsonl`; `custos` resume por papel/modelo.
 
 ## Segurança — leia antes de usar

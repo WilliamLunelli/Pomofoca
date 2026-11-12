@@ -113,6 +113,12 @@ export const MAX_TOKENS_PER_TASK = Number(
       ? 4_000_000
       : 600_000),
 );
+/**
+ * Peso da leitura de cache no orçamento. Cada volta do laço de um CLI reenvia a conversa inteira,
+ * que volta como "leitura de cache": nas execuções medidas do agy isso foi 85-90% do total, sem
+ * ser trabalho novo (e os provedores cobram cache bem mais barato). 0 = ignora, 1 = conta inteiro.
+ */
+export const CACHE_WEIGHT = Math.max(0, Number(process.env.AGENT_CACHE_WEIGHT ?? 0.1));
 export const MAX_DELEGATIONS_PER_TASK = Number(
   process.env.AGENT_MAX_DELEGATIONS_PER_TASK ?? 14,
 );

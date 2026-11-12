@@ -19,6 +19,11 @@ const root = (() => {
 const logs = path.join(root, '.agent-logs');
 
 const mode = (process.env.AGENT_PROVIDER_MODE?.trim().toLowerCase() || 'cli') === 'api' ? 'api' : 'cli';
+// Espelha src/config.ts: orçamento = entrada nova + saída + cache × CACHE_WEIGHT.
+const CACHE_WEIGHT = Math.max(0, Number(process.env.AGENT_CACHE_WEIGHT ?? 0.1));
+const fresh = (d) => (d.inputTokens || 0) + (d.outputTokens || 0);
+const cacheOf = (d) => d.cacheReadTokens || 0;
+const counted = (d) => fresh(d) + Math.round(cacheOf(d) * CACHE_WEIGHT);
 const TOKEN_LIMIT = Number(process.env.AGENT_MAX_TOKENS_PER_TASK ?? (mode === 'cli' ? 4_000_000 : 600_000));
 const DELEGATION_LIMIT = Number(process.env.AGENT_MAX_DELEGATIONS_PER_TASK ?? 14);
 
@@ -145,7 +150,9 @@ function state() {
     const ds = delegations
       .filter((d) => d.taskId === id)
       .map((d) => ({ ...d, transcripts: legacyFor(d), report: d.id ? reports.get(d.id) ?? null : null }));
-    const tokens = ds.reduce((s, d) => s + (d.inputTokens || 0) + (d.outputTokens || 0), 0);
+    const tokens = ds.reduce((s, d) => s + counted(d), 0);
+    const freshTokens = ds.reduce((s, d) => s + fresh(d), 0);
+    const cacheTokens = ds.reduce((s, d) => s + cacheOf(d), 0);
     return {
       id,
       branch: meta.branch ?? null,
@@ -154,6 +161,8 @@ function state() {
       createdAt: meta.createdAt ?? ds[0]?.ts ?? null,
       closed: Boolean(meta.closed),
       tokens,
+      freshTokens,
+      cacheTokens,
       tokenLimit: Number(budgets[id]) > 0 ? Number(budgets[id]) : TOKEN_LIMIT,
       delegations: ds,
       gates: gates.filter((g) => g.taskId === id),
@@ -169,7 +178,8 @@ function state() {
       model: running.find((x) => x.role === r.role)?.model ?? ds.at(-1)?.model ?? null,
       calls: ds.length,
       failures: ds.filter((d) => !d.ok).length,
-      tokens: ds.reduce((s, d) => s + (d.inputTokens || 0) + (d.outputTokens || 0), 0),
+      tokens: ds.reduce((s, d) => s + fresh(d), 0),
+      cache: ds.reduce((s, d) => s + cacheOf(d), 0),
       ms: ds.reduce((s, d) => s + (d.ms || 0), 0),
       running: running.some((x) => x.role === r.role),
     };
@@ -179,7 +189,7 @@ function state() {
     now: new Date().toISOString(),
     repo: root,
     mode,
-    limits: { tokens: TOKEN_LIMIT, delegations: DELEGATION_LIMIT },
+    limits: { tokens: TOKEN_LIMIT, delegations: DELEGATION_LIMIT, cacheWeight: CACHE_WEIGHT },
     roles,
     tasks: byTask,
     running,
@@ -365,7 +375,7 @@ function workerCard(r) {
     '<div class="top"><span class="name">' + esc(r.role) + '</span>' +
     (r.running ? '<span class="badge run">rodando</span>' : '<span class="badge ' + f + '">' + esc(r.model ? r.model.replace(/^(agy|claude-cli|anthropic|google):/, '') : 'ainda não usado') + '</span>') + '</div>' +
     '<div class="what"><code>' + esc(r.tool) + '</code> · ' + esc(r.what) + '</div>' +
-    '<div class="stats">' + r.calls + ' chamada(s)' + (r.failures ? ' · ' + r.failures + ' falha(s)' : '') + ' · ' + fmtTok(r.tokens) + ' tokens · ' + fmtMs(r.ms) + '</div></div>';
+    '<div class="stats">' + r.calls + ' chamada(s)' + (r.failures ? ' · ' + r.failures + ' falha(s)' : '') + ' · ' + fmtTok(r.tokens) + ' novos' + (r.cache ? ' + ' + fmtTok(r.cache) + ' cache' : '') + ' · ' + fmtMs(r.ms) + '</div></div>';
 }
 
 function stepsHtml(t) {
@@ -383,10 +393,15 @@ function det(key, label, inner) {
 function delegationEv(d) {
   const f = fam(d.model);
   const tok = (d.inputTokens || 0) + (d.outputTokens || 0);
+  const cache = d.cacheReadTokens;
+  // Entradas antigas (sem cacheReadTokens) do agy/claude-cli somavam o cache na entrada.
+  const tokLabel = cache === undefined && /^(agy|claude-cli):/.test(String(d.model))
+    ? fmtTok(tok) + ' tokens (com cache, registro antigo)'
+    : fmtTok(tok) + ' novos' + (cache ? ' + ' + fmtTok(cache) + ' cache' : '');
   let html = '<div class="ev ' + f + '"><div class="when">' + fmtTime(d.ts) + '</div><div class="card body">' +
     '<div class="row"><span class="role">' + esc(d.role) + '</span><span class="badge ' + f + '">' + esc(famName(d.model)) + ' · ' + esc(String(d.model).replace(/^(agy|claude-cli):/, '')) + '</span>' +
     '<span class="badge ' + (d.ok ? 'ok' : 'fail') + '">' + (d.ok ? 'ok' : 'falhou') + '</span>' +
-    '<span class="meta">' + fmtMs(d.ms) + ' · ' + fmtTok(tok) + ' tokens</span></div>';
+    '<span class="meta">' + fmtMs(d.ms) + ' · ' + tokLabel + '</span></div>';
   if (d.note) html += '<div class="meta" style="margin-top:6px;color:var(--fail)">' + esc(d.note) + '</div>';
   const id = d.id || d.ts + d.role;
   html += d.instruction ? det(id + ':in', '→ instrução do gestor', '<pre>' + esc(d.instruction) + '</pre>') : '<div class="meta" style="margin-top:6px">(delegação anterior ao painel: instrução não registrada)</div>';
@@ -426,7 +441,7 @@ function renderTask(t, limits) {
     '<div><div class="row"><b>' + esc(t.id) + '</b>' + (t.closed ? '<span class="badge none">encerrada</span>' : t.running.length ? '<span class="badge run">em andamento</span>' : '<span class="badge ok">aberta</span>') + '</div>' +
     '<div class="kv">branch <code>' + esc(t.branch || '—') + '</code> · base <code>' + esc((t.base || '').slice(0, 8)) + '</code></div>' +
     '<div class="kv">worktree <code>' + esc(t.dir || '—') + '</code></div></div>' +
-    '<div><div class="kv">orçamento: <code>' + fmtTok(t.tokens) + '</code> de ' + fmtTok(t.tokenLimit) + ' tokens' + (t.tokenLimit !== limits.tokens ? ' (liberado pelo usuário)' : '') + '</div><div class="bar ' + (pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '') + '"><span style="width:' + pct + '%"></span></div>' +
+    '<div><div class="kv">orçamento: <code>' + fmtTok(t.tokens) + '</code> de ' + fmtTok(t.tokenLimit) + (t.tokenLimit !== limits.tokens ? ' (liberado pelo usuário)' : '') + '</div><div class="kv">' + fmtTok(t.freshTokens) + ' novos + ' + fmtTok(t.cacheTokens) + ' cache (conta × ' + limits.cacheWeight + ')</div><div class="bar ' + (pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '') + '"><span style="width:' + pct + '%"></span></div>' +
     '<div class="kv" style="margin-top:6px">delegações: <code>' + t.delegations.length + '</code> de ' + limits.delegations + '</div></div>' +
     '<div><div class="kv">último gate</div><div class="gates">' + (lastGate ? lastGate.results.map((r) => '<span class="badge ' + (r.status === 'pass' ? 'ok' : r.status === 'fail' ? 'fail' : 'none') + '">' + esc(r.name) + '</span>').join('') : '<span class="badge none">ainda não rodou</span>') + '</div></div>' +
     '</div>';

@@ -122,6 +122,7 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
     let steps: number;
     let inTok: number;
     let outTok: number;
+    let cacheTok = 0;
     const notes: string[] = [];
     let transcripts: string[] = [];
 
@@ -139,7 +140,13 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
         timeoutMs: WORKER_TIMEOUT_MS,
         transcriptBase,
       });
-      ({ text, steps, inputTokens: inTok, outputTokens: outTok } = r);
+      ({
+        text,
+        steps,
+        inputTokens: inTok,
+        outputTokens: outTok,
+        cacheReadTokens: cacheTok,
+      } = r);
       transcripts = r.transcripts ?? [];
       notes.push(...r.notes);
       if (meta) {
@@ -181,6 +188,7 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       model: modelLabel,
       inputTokens: inTok,
       outputTokens: outTok,
+      cacheReadTokens: cacheTok,
       ms: Date.now() - started,
       ok: true,
       id: delegationId,
@@ -201,7 +209,8 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       text.trim() ||
       '(o worker não produziu relatório final — provável limite de passos; veja o diffstat)';
     const extraNotes = notes.length ? `\n\n${notes.join('\n')}` : '';
-    const header = `[${a.role} · ${modelLabel} · ${steps} passo(s) · ${inTok + outTok} tokens]`;
+    const cacheInfo = cacheTok ? ` + ${cacheTok} de cache` : '';
+    const header = `[${a.role} · ${modelLabel} · ${steps} passo(s) · ${inTok + outTok} tokens novos${cacheInfo}]`;
     const reply = `${header}\n${clip(body, MAX_REPORT_CHARS)}${extraNotes}${changes}`;
     attachReport(delegationId, reply);
     return { text: reply, isError: false };
@@ -214,6 +223,7 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       model: modelLabel,
       inputTokens: 0,
       outputTokens: 0,
+      cacheReadTokens: 0,
       ms: Date.now() - started,
       ok: false,
       note: message.slice(0, 300),

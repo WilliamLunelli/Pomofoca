@@ -43,8 +43,14 @@ export interface CliRequest {
 
 export interface CliResult {
   text: string;
+  /** Tokens de entrada NOVOS (sem leitura de cache). */
   inputTokens: number;
   outputTokens: number;
+  /**
+   * Leitura de cache: a conversa reenviada a cada volta do laço do CLI. Fica separada porque
+   * infla muito o total (85-90% nas execuções medidas do agy) sem ser trabalho novo.
+   */
+  cacheReadTokens: number;
   steps: number;
   /** Avisos para o gestor (ex.: ações que o CLI negou por falta de permissão). */
   notes: string[];
@@ -224,6 +230,17 @@ function agyRules(policy: ToolPolicy): string {
       : '- Você NÃO pode criar nem alterar arquivos nesta execução: só leia e responda.',
     '- Trabalhe só dentro da pasta atual: caminhos relativos, sem "..", sem caminho absoluto, sem ~.',
     '- Sem acesso à web nem a arquivos .env.',
+    '',
+    '# Economia (cada ação sua reenvia a conversa inteira ao modelo: menos ações = menos custo)',
+    '- Comece pelos arquivos que a tarefa cita. NÃO explore a árvore do projeto nem rode `git log`/`git status`/`git diff` para "se situar": o gestor já mapeou o código.',
+    '- Leia cada arquivo INTEIRO de uma vez (sem pedaços de linhas) e não leia o mesmo arquivo de novo sem ter alterado ele.',
+    ...(policy.canRunChecks
+      ? [
+          '- Teste só o arquivo que importa (ex.: `npx jest tests/unit/x.test.ts` dentro do pacote) e espere o comando TERMINAR na mesma ação; não consulte o status de tarefas em segundo plano.',
+          '- NÃO rode a suíte completa nem `npm run lint`: o gate do gestor roda tudo depois, sem LLM.',
+        ]
+      : []),
+    '- Assim que a tarefa estiver cumprida, pare e escreva o relatório. Nada de verificações extras.',
   ].join('\n');
 }
 
@@ -287,11 +304,10 @@ export function parseClaude(json: Record<string, unknown>): Parsed {
   const usage = obj(json.usage);
   return {
     text: str(json.result),
-    inputTokens:
-      num(usage.input_tokens) +
-      num(usage.cache_read_input_tokens) +
-      num(usage.cache_creation_input_tokens),
+    // Escrita de cache conta como entrada nova (é conteúdo que o modelo leu pela 1a vez).
+    inputTokens: num(usage.input_tokens) + num(usage.cache_creation_input_tokens),
     outputTokens: num(usage.output_tokens),
+    cacheReadTokens: num(usage.cache_read_input_tokens),
     steps: num(json.num_turns) || 1,
     isError: json.is_error === true,
   };
@@ -304,11 +320,13 @@ export interface AgyStream {
   failedCommands: string[];
   /** Quantas chamadas de ferramenta terminaram. */
   toolSteps: number;
+  /** Quantas vezes o modelo foi chamado (cada volta reenvia a conversa: é o que gera cache). */
+  modelCalls: number;
 }
 
 /** Lê a saída `--output-format stream-json` do agy (NDJSON, um evento por linha). */
 export function parseAgyStream(stdout: string): AgyStream {
-  const out: AgyStream = { failedCommands: [], toolSteps: 0 };
+  const out: AgyStream = { failedCommands: [], toolSteps: 0, modelCalls: 0 };
   for (const line of stdout.split(/\r?\n/)) {
     if (!line.trim().startsWith('{')) continue;
     let ev: Record<string, unknown>;
@@ -321,6 +339,7 @@ export function parseAgyStream(stdout: string): AgyStream {
       out.envelope = obj(ev.result);
     } else if (ev.event === 'step_update') {
       const step = obj(ev.step_update);
+      if (step.step_type === 'agent_response' && step.state === 'DONE') out.modelCalls++;
       if (step.step_type !== 'tool' || (step.state !== 'DONE' && step.state !== 'ERROR'))
         continue;
       out.toolSteps++;
@@ -348,8 +367,10 @@ export function parseAgy(json: Record<string, unknown>): Parsed {
   const status = str(json.status);
   return {
     text: str(json.response) || errText,
-    inputTokens: num(usage.input_tokens) + num(usage.cache_read_tokens),
+    // No envelope do agy, input_tokens já vem SEM o cache (total_tokens = input + output).
+    inputTokens: num(usage.input_tokens),
     outputTokens: num(usage.output_tokens),
+    cacheReadTokens: num(usage.cache_read_tokens),
     steps: num(json.num_turns) || 1,
     isError: Boolean(errText) || (status !== '' && status !== 'SUCCESS'),
     notes: denied.length
@@ -511,6 +532,7 @@ export async function runCli(req: CliRequest): Promise<CliResult> {
     const { isError: _ignored, notes = [], ...result } = parsed;
     const failed = [...(stream?.failedCommands ?? [])];
     let toolSteps = stream?.toolSteps ?? 0;
+    let modelCalls = stream?.modelCalls ?? 0;
 
     // agy em headless: uma ação negada ENCERRA a execução com resposta vazia. Retoma a mesma
     // conversa avisando o que foi negado, até AGY_MAX_RESUMES vezes, para o worker terminar
@@ -541,13 +563,17 @@ export async function runCli(req: CliRequest): Promise<CliResult> {
       result.text = parsed.text;
       result.inputTokens += parsed.inputTokens;
       result.outputTokens += parsed.outputTokens;
+      result.cacheReadTokens += parsed.cacheReadTokens;
       failed.push(...(stream?.failedCommands ?? []));
       toolSteps += stream?.toolSteps ?? 0;
+      modelCalls += stream?.modelCalls ?? 0;
       notes.push(...(parsed.notes ?? []));
       notes.push(`Execução retomada após negação (${attempt}/${AGY_MAX_RESUMES}).`);
     }
 
-    if (toolSteps) result.steps = toolSteps + 1;
+    // "passos" = voltas do modelo (é o que custa); sem stream, cai no nº de ferramentas + 1.
+    if (modelCalls) result.steps = modelCalls;
+    else if (toolSteps) result.steps = toolSteps + 1;
     if (failed.length) {
       notes.push(
         `Comandos negados/falhos: ${failed

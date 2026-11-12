@@ -4,7 +4,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { MAX_DELEGATIONS_PER_TASK, MAX_TOKENS_PER_TASK } from './config.js';
+import { CACHE_WEIGHT, MAX_DELEGATIONS_PER_TASK, MAX_TOKENS_PER_TASK } from './config.js';
 import { logsDir } from './workspace.js';
 
 export interface LedgerEntry {
@@ -12,8 +12,11 @@ export interface LedgerEntry {
   taskId: string;
   role: string;
   model: string;
+  /** Entrada NOVA (sem leitura de cache). Em entradas antigas do agy/claude-cli, inclui cache. */
   inputTokens: number;
   outputTokens: number;
+  /** Leitura de cache (ausente em entradas antigas). */
+  cacheReadTokens?: number;
   ms: number;
   ok: boolean;
   note?: string;
@@ -112,9 +115,13 @@ export function tokenLimitFor(taskId: string): number {
   return MAX_TOKENS_PER_TASK;
 }
 
+/** Tokens que contam no orçamento: entrada nova + saída + cache × CACHE_WEIGHT. */
+export const budgetTokens = (e: LedgerEntry): number =>
+  e.inputTokens + e.outputTokens + Math.round((e.cacheReadTokens ?? 0) * CACHE_WEIGHT);
+
 export function budgetBlock(taskId: string): string | null {
   const list = entries(taskId);
-  const tokens = list.reduce((s, e) => s + e.inputTokens + e.outputTokens, 0);
+  const tokens = list.reduce((s, e) => s + budgetTokens(e), 0);
   const limit = tokenLimitFor(taskId);
   if (tokens >= limit) {
     return `Orçamento da tarefa estourado (${tokens} de ${limit} tokens). Pare, resuma o estado atual ao usuário e peça decisão.`;
@@ -130,25 +137,34 @@ export function report(taskId?: string): string {
   if (list.length === 0) return 'Nenhuma delegação registrada ainda.';
   const byRole = new Map<
     string,
-    { calls: number; inTok: number; outTok: number; ms: number }
+    { calls: number; inTok: number; outTok: number; cache: number; ms: number }
   >();
   for (const e of list) {
     const key = `${e.role} (${e.model})`;
-    const cur = byRole.get(key) ?? { calls: 0, inTok: 0, outTok: 0, ms: 0 };
+    const cur = byRole.get(key) ?? { calls: 0, inTok: 0, outTok: 0, cache: 0, ms: 0 };
     cur.calls += 1;
     cur.inTok += e.inputTokens;
     cur.outTok += e.outputTokens;
+    cur.cache += e.cacheReadTokens ?? 0;
     cur.ms += e.ms;
     byRole.set(key, cur);
   }
-  const total = list.reduce((s, e) => s + e.inputTokens + e.outputTokens, 0);
+  const fresh = list.reduce((s, e) => s + e.inputTokens + e.outputTokens, 0);
+  const cache = list.reduce((s, e) => s + (e.cacheReadTokens ?? 0), 0);
+  const counted = list.reduce((s, e) => s + budgetTokens(e), 0);
+  const legacy = list.filter((e) => e.cacheReadTokens === undefined && e.ok).length;
   const lines = [...byRole.entries()].map(
     ([k, v]) =>
-      `- ${k}: ${v.calls} chamada(s), ${v.inTok} in / ${v.outTok} out, ${(v.ms / 1000).toFixed(0)}s`,
+      `- ${k}: ${v.calls} chamada(s), ${v.inTok} in / ${v.outTok} out novos + ${v.cache} cache, ${(v.ms / 1000).toFixed(0)}s`,
   );
   return [
-    `Tokens totais${taskId ? ` da tarefa ${taskId}` : ''}: ${total} (limite: ${taskId ? tokenLimitFor(taskId) : MAX_TOKENS_PER_TASK})`,
+    `Tokens${taskId ? ` da tarefa ${taskId}` : ''}: ${fresh} novos + ${cache} de cache = ${counted} no orçamento (cache × ${CACHE_WEIGHT}; limite ${taskId ? tokenLimitFor(taskId) : MAX_TOKENS_PER_TASK})`,
     ...lines,
+    ...(legacy
+      ? [
+          `(${legacy} delegação(ões) anteriores à separação do cache: nelas a entrada inclui o cache.)`,
+        ]
+      : []),
     'Para custo em dinheiro, multiplique pelos preços atuais de cada modelo (não embutidos aqui de propósito).',
   ].join('\n');
 }

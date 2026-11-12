@@ -45,6 +45,7 @@ let n = 0;
 const ok = (name) => console.log(`OK   ${name}`) || n++;
 const read = (...p) => fs.readFileSync(path.join(...p), 'utf8').replace(/\r\n/g, '\n'); // autocrlf no Windows
 const c_argOf = (argv, flag) => argv[argv.indexOf(flag) + 1];
+const c_stdinOf = (call) => call.stdin;
 const lastCall = () => JSON.parse(fs.readFileSync(log, 'utf8'));
 const run = (args, writes = {}, mode = 'ok', deletes = []) => {
   process.env.FAKE_CLI_WRITES = JSON.stringify(writes);
@@ -66,9 +67,12 @@ let r = await run(
   },
 );
 assert.equal(r.isError, false, r.text);
-assert.match(r.text, /^\[programador · claude-cli:sonnet · 3 passo\(s\) · 1050 tokens\]/);
+// Claude: input 100 + output 50 = 150 novos; cache_read 900 fica SEPARADO.
+assert.match(r.text, /^\[programador · claude-cli:sonnet · 3 passo\(s\) · 150 tokens novos \+ 900 de cache\]/);
+assert.equal(entries('cli-x').at(-1).cacheReadTokens, 900);
+assert.equal(entries('cli-x').at(-1).inputTokens, 100);
 assert.match(r.text, /RESUMO: feito pelo CLI simulado/);
-ok('programador → claude-cli:sonnet; relatório + tokens (incl. cache) parseados do JSON');
+ok('programador → claude-cli:sonnet; relatório + tokens novos e de cache separados no relatório e no ledger');
 
 let c = lastCall();
 assert.equal(c.kind, 'claude');
@@ -105,8 +109,12 @@ r = await run(
   { 'src/feature.test.ts': 'test("x", () => {});\n', 'src/feature.ts': 'hackeado' },
 );
 assert.equal(r.isError, false, r.text);
-// 3 ferramentas concluídas (DONE/ERROR) + 1 = 4 passos; tokens = 2000 in + 500 cache + 100 out.
-assert.match(r.text, /^\[testador · agy:gemini-3\.8-flash-high · 4 passo\(s\) · 2600 tokens\]/);
+// 3 ferramentas concluídas (DONE/ERROR) + 1 = 4 passos; 2000 in + 100 out novos, 500 de cache à parte.
+assert.match(r.text, /^\[testador · agy:gemini-3\.8-flash-high · 4 passo\(s\) · 2100 tokens novos \+ 500 de cache\]/);
+// Regras de economia no prompt do testador (medido: suíte completa 3x, lint, git status/diff).
+assert.match(c_stdinOf(lastCall()), /NÃO explore a árvore/);
+assert.match(c_stdinOf(lastCall()), /NÃO rode a suíte completa nem `npm run lint`/);
+assert.match(c_stdinOf(lastCall()), /espere o comando TERMINAR/);
 assert.match(r.text, /Comandos negados\/falhos: `curl https:\/\/exemplo\.com`/);
 assert.doesNotMatch(r.text, /Get-ChildItem/);
 assert.equal(c_argOf(lastCall().argv, '--output-format'), 'stream-json');
@@ -211,7 +219,7 @@ r = await run({ role: 'revisor', taskId: 'cli-x', instruction: 'Revise' }, {}, '
 assert.equal(r.isError, false, r.text);
 assert.match(r.text, /RESUMO: feito pelo CLI simulado/);
 assert.match(r.text, /Execução retomada após negação \(1\/3\)/);
-assert.match(r.text, /· 7 passo\(s\) · 5200 tokens\]/); // 3+3 ferramentas +1; tokens das 2 execuções
+assert.match(r.text, /· 7 passo\(s\) · 4200 tokens novos \+ 1000 de cache\]/); // 3+3 ferramentas +1; 2 execuções somadas
 c = lastCall();
 assert.equal(c_argOf(c.argv, '--conversation'), 'conv-123');
 assert.match(c.stdin, /NEGADA[\s\S]*`curl https:\/\/exemplo\.com`[\s\S]*TAREFA ORIGINAL/);
@@ -277,6 +285,47 @@ ok('painel: ledger guarda instrução/id/transcrição; relatório em reports.js
   delete process.env.AGENT_MAX_TOKENS_PER_TASK;
 }
 ok('orçamento: budgets.json libera mais tokens só para a tarefa indicada');
+
+// ---- 5f) cache no orçamento: conta com peso (padrão 0,1), não inteiro
+{
+  const { budgetTokens } = await import(dist('ledger.js'));
+  const e = { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 1_000_000 };
+  assert.equal(budgetTokens(e), 1000 + 100 + 100_000);
+  assert.equal(budgetTokens({ inputTokens: 5, outputTokens: 5 }), 10, 'entrada antiga sem cache separado');
+  const { parseClaude, parseAgy, parseAgyStream } = await import(dist('cli-runner.js'));
+  const pc = parseClaude({ result: 'x', usage: { input_tokens: 10, cache_creation_input_tokens: 40, cache_read_input_tokens: 5000, output_tokens: 7 } });
+  assert.deepEqual([pc.inputTokens, pc.outputTokens, pc.cacheReadTokens], [50, 7, 5000]);
+  const pa = parseAgy({ status: 'SUCCESS', response: 'x', usage: { input_tokens: 9000, output_tokens: 200, cache_read_tokens: 1_200_000, total_tokens: 9200 } });
+  assert.deepEqual([pa.inputTokens, pa.cacheReadTokens], [9000, 1_200_000]);
+  const st = parseAgyStream(
+    [
+      { event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE' } },
+      { event: 'step_update', step_update: { step_type: 'agent_response', state: 'DONE' } },
+      { event: 'result', result: { status: 'SUCCESS' } },
+    ].map((e) => JSON.stringify(e)).join('\n'),
+  );
+  assert.equal(st.modelCalls, 2);
+}
+ok('cache: Claude/agy separam leitura de cache; orçamento conta cache × 0,1; voltas do modelo contadas');
+
+// ---- 5g) documentação: pula sem LLM se nenhum .md editável cita o que mudou
+{
+  const { checkDocs } = await import(dist('docs-check.js'));
+  const base = git('rev-parse', 'main').trim();
+  let d = await checkDocs(wt, base);
+  assert.ok(d.changed.includes('src/feature.ts'), JSON.stringify(d));
+  assert.deepEqual(d.editable, [], 'nenhum doc editável cita feature.ts');
+  // CLAUDE.md (protegido) citando o arquivo → aparece como "para o dono", não como editável
+  fs.writeFileSync(path.join(wt, 'CLAUDE.md'), '# regras\nVer src/feature.ts\n');
+  fs.mkdirSync(path.join(wt, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(wt, 'docs', 'guia.md'), 'A feature.ts exporta feature.\n');
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A'], { cwd: wt });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'docs'], { cwd: wt });
+  d = await checkDocs(wt, base);
+  assert.deepEqual(d.protectedHits, ['CLAUDE.md']);
+  assert.deepEqual(d.editable, ['docs/guia.md']);
+}
+ok('documentação: checagem sem LLM separa docs editáveis dos protegidos (CLAUDE.md)');
 
 // ---- 6) parse tolerante
 assert.deepEqual(lastJson('warn {x}\n{"a":1}'), { a: 1 });

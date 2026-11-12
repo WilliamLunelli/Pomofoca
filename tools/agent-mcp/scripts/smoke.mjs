@@ -95,7 +95,7 @@ r = await call('triar_falhas', { taskId: 'demo', check: 'test' });
 check('triar_falhas lê o log e falha limpo sem chave', r.isError && /GOOGLE_GENERATIVE_AI_API_KEY/.test(r.text), r.text);
 
 r = await call('custos', { taskId: 'demo' });
-check('custos registra as tentativas', /Tokens totais/.test(r.text) || /Nenhuma/.test(r.text), r.text);
+check('custos registra as tentativas', /Tokens da tarefa demo: \d+ novos \+ \d+ de cache = \d+ no orçamento/.test(r.text) || /Nenhuma/.test(r.text), r.text);
 
 r = await call('tarefa_encerrar', { taskId: 'demo' });
 check('tarefa_encerrar remove worktree e mantém branch', !r.isError && !fs.existsSync(wtDir), r.text);
