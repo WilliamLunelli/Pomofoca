@@ -24,7 +24,7 @@ import type {
   ReportStreak,
   ReportSummary,
   ReportTrend,
-} from '@/lib/types';
+} from '@pomofoca/shared';
 
 const INSIGHT_ICON: Record<InsightItem['type'], typeof Clock> = {
   peak_hours: Clock,

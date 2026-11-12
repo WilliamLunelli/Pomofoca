@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
-import type { BillingCycle } from '@/lib/types';
+import type { BillingCycle } from '@pomofoca/shared';
 
 export function useCheckout() {
   const [loadingCycle, setLoadingCycle] = useState<BillingCycle | null>(null);

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react';
 
 import { api, clearTokens, getAccessToken, setTokens } from '@/lib/api';
-import type { User } from '@/lib/types';
+import type { User } from '@pomofoca/shared';
 
 interface AuthTokensResponse {
   accessToken: string;

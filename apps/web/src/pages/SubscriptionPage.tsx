@@ -5,7 +5,7 @@ import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
 import { useAuth } from '@/context/AuthContext';
 import { useCheckout } from '@/hooks/useCheckout';
 import { api, ApiError } from '@/lib/api';
-import type { Subscription } from '@/lib/types';
+import type { Subscription } from '@pomofoca/shared';
 
 export function SubscriptionPage() {
   const { user, refreshUser } = useAuth();

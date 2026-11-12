@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
-import type { Subject } from '@/lib/types';
+import type { Subject } from '@pomofoca/shared';
 
 export function useSubjects(includeArchived = false) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
