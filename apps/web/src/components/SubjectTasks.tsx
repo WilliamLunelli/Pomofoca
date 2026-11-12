@@ -15,6 +15,7 @@ export function SubjectTasks({ subjectId }: SubjectTasksProps) {
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [poppedId, setPoppedId] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -48,8 +49,13 @@ export function SubjectTasks({ subjectId }: SubjectTasksProps) {
             <button
               role="checkbox"
               aria-checked={task.completed}
-              onClick={() => toggleTask(task.id, !task.completed)}
+              onClick={() => {
+                // pop só na transição não concluída → concluída feita pelo usuário
+                setPoppedId(task.completed ? null : task.id);
+                toggleTask(task.id, !task.completed);
+              }}
               data-done={task.completed}
+              data-pop={poppedId === task.id && task.completed}
               className="task-check flex h-[18px] w-[18px] flex-none items-center justify-center rounded-sm border"
               style={{
                 borderColor: task.completed

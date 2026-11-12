@@ -53,7 +53,7 @@ export function OnboardingPage() {
           <p className="mb-6 text-center text-sm text-cta">{checkoutError}</p>
         )}
 
-        <PlanCards free={free} monthly={monthly} yearly={yearly} />
+        <PlanCards free={free} monthly={monthly} yearly={yearly} animateIn />
       </div>
     </div>
   );

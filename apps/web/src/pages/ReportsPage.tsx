@@ -456,9 +456,9 @@ export function ReportsPage() {
                     dataKey="minutes"
                     fill="var(--color-accent)"
                     radius={[3, 3, 0, 0]}
-                    isAnimationActive={!reducedMotion}
-                    animationDuration={700}
-                    animationEasing="ease-out"
+                    // sem animacao propria: a de entrada do Recharts congela posicoes
+                    // medidas durante a entrada da pagina e desalinha barras e rotulos
+                    isAnimationActive={false}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -491,9 +491,7 @@ export function ReportsPage() {
                     dataKey="minutes"
                     fill="var(--color-accent)"
                     radius={[3, 3, 0, 0]}
-                    isAnimationActive={!reducedMotion}
-                    animationDuration={700}
-                    animationEasing="ease-out"
+                    isAnimationActive={false}
                   />
                 </BarChart>
               </ResponsiveContainer>

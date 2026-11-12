@@ -268,7 +268,7 @@
     background var(--motion-fast) ease,
     border-color var(--motion-fast) ease;
 }
-.task-check[data-done='true'] {
+.task-check[data-pop='true'] {
   animation: check-pop var(--motion-base) var(--ease-spring);
 }
 .task-title {
@@ -302,7 +302,7 @@
   .glow-pulse,
   .clock-pop,
   .flame-flicker,
-  .task-check[data-done='true'] {
+  .task-check[data-pop='true'] {
     animation: none;
   }
   .card-interactive:hover,

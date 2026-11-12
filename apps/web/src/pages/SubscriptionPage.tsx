@@ -83,6 +83,7 @@ export function SubscriptionPage() {
             free={free}
             monthly={premiumAction('MONTHLY')}
             yearly={premiumAction('YEARLY')}
+            animateIn
           />
         </div>
 
