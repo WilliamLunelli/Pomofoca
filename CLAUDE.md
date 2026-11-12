@@ -107,10 +107,8 @@ src/
 ├── lib/
 │   ├── api.ts                    # fetch wrapper com refresh automático de token
 │   ├── color.ts                  # OKLCH + generateRamp + paletas curadas
-│   ├── plans.ts                  # preço/features Free-Premium, compartilhado entre
-│   │                                 LandingPage, OnboardingPage e SubscriptionPage
-│   └── types.ts                  # tipos das respostas da API (não vieram de
-│                                     packages/shared ainda - ver nota abaixo)
+│   └── plans.ts                  # preço/features Free-Premium, compartilhado entre
+│                                     LandingPage, OnboardingPage e SubscriptionPage
 ├── pages/                        # Landing (pública), Onboarding (pós-cadastro),
 │                                     Timer, Subjects, Reports, Settings, Subscription,
 │                                     Login, Register
@@ -161,12 +159,12 @@ ainda usa a rampa numérica de propósito (precisa de 5 tons bem diferenciados, 
 tint único) — não foi alterado, pode ter o mesmo problema de contraste no dark mode
 se isso incomodar no futuro.
 
-**Nota de arquitetura pendente:** os tipos de resposta da API (`src/lib/types.ts`)
-foram definidos localmente em `apps/web` por velocidade, em vez de irem para
-`packages/shared` como a convenção original pedia ("tipos usados por mais de um app
-vivem em shared"). `Plan` e `SessionType` já vêm de `packages/shared` corretamente.
-Mover `Subject`/`PomodoroSession`/etc. para `packages/shared` é um refactor futuro de
-baixo risco, não urgente.
+**Tipos de resposta da API:** vivem em `packages/shared/src/types/api.ts` (20 tipos:
+`User`, `Subject`, `Task`, `RoutineBlock`, `PomodoroSession`, os de relatório, insights,
+notificações e assinatura), reexportados por `@pomofoca/shared` junto com `Plan` e
+`SessionType`. O web importa sempre de `@pomofoca/shared` (`import type`), seguindo a
+convenção "tipos usados por mais de um app vivem em shared". Antes ficavam em
+`apps/web/src/lib/types.ts`, que foi removido.
 
 ### Timer (`src/pages/TimerPage.tsx`)
 
@@ -544,7 +542,9 @@ Web Push nativo (`web-push` + VAPID), sem serviço terceiro pago.
   raiz. **A chave pública precisa estar duplicada** em
   `apps/web/.env` (`VITE_VAPID_PUBLIC_KEY`) — são a mesma chave, é seguro expor no
   bundle do cliente (por isso "pública"), mas se regenerar o par, atualizar os
-  dois arquivos.
+  dois arquivos. Nos testes, `apps/api/tests/jest.setup.ts` gera um par novo a cada
+  execução (`webpush.generateVAPIDKeys()`) e **sempre sobrescreve** o ambiente: nenhuma
+  chave fica no repositório e os testes nunca usam as chaves reais.
 - Frontend: `apps/web/src/lib/push.ts` (subscribe/unsubscribe/status via
   `PushManager`) + seção "Notificações" em `SettingsPage.tsx` (Premium-gated,
   upsell pra FREE). **Mudança de arquitetura do PWA**: `vite.config.ts` trocou de
@@ -596,7 +596,7 @@ generativa, sem custo de API). `apps/api/src/modules/insights/`.
   indexadas), separada do cálculo pesado — por isso pode rodar a cada `GET
   /insights` (pra mostrar "faltam N dias/sessões" sempre atualizado, mesmo entre
   execuções do job semanal), enquanto o cálculo dos insights em si só roda no job.
-- **4 funções puras**, cada uma com seu próprio piso mínimo de amostra além do
+- **5 funções puras**, cada uma com seu próprio piso mínimo de amostra além do
   piso geral (testáveis isoladamente, sem mock de Prisma — recebem os dados já
   buscados):
   - `computePeakHours` — bloco de 2h (fuso local) com melhor taxa de conclusão vs
@@ -610,6 +610,13 @@ generativa, sem custo de API). `apps/api/src/modules/insights/`.
   - `computeInterruptionPattern` — compara taxa de interrupção por matéria vs por
     bloco de horário, usa a que tiver diferença mais significativa; mínimo 10
     sessões interrompidas na amostra E gap ≥ 20 pontos percentuais vs a média
+  - `computeRoutineMismatch` (`routine_mismatch`) — compara os `RoutineBlock` ativos e
+    com matéria (não arquivada) com as sessões FOCUS reais das últimas 4 semanas
+    (fuso local, sem o dia de hoje). Numa ocorrência do dia do bloco, "no horário" se
+    uma sessão da matéria cruza o bloco; "fora" se houve sessão da matéria no dia mas
+    nenhuma cruza. Piso: ≥ 3 vezes fora, mais fora do que dentro, e começando no mesmo
+    bloco de 2h em ≥ 3 delas. **Só sugere** ("Que tal ajustar o bloco?"), nunca
+    altera o `RoutineBlock`. Ícone `CalendarBlank` no card
   - **Descoberto rodando contra dado real** (não só testes unitários): sem piso de
     diferença mínima, `peak_hours`/`weak_day` geravam insights tecnicamente
     verdadeiros mas irrelevantes (“completa 1% mais pomodoros entre 4h-6h”) — nada
@@ -692,11 +699,10 @@ converter quem ainda não decidiu assinar.
   marca como cumprido se a matéria do bloco teve algum minuto estudado hoje
   (não faz comparação fina de sobreposição de horário; blocos sem matéria
   vinculada não têm como ser verificados automaticamente, ficam neutros).
-- **Fora de escopo deliberadamente** (registrado no prompt original, não
-  implementado): um 5º tipo de insight (`routine_mismatch`) comparando
-  `RoutineBlock` com os horários reais de estudo e sugerindo ajustes — só faz
-  sentido depois do motor de Insights já validado com uso real, e sempre como
-  sugestão aprovada bloco a bloco, nunca uma mudança automática.
+- **Insight `routine_mismatch`** (implementado depois do motor de Insights validado):
+  compara os blocos com os horários reais de estudo e sugere ajuste quando há
+  descompasso consistente — sempre como sugestão, nunca uma mudança automática no
+  bloco. Detalhes na seção "3. Insights adaptativos".
 - Validado rodando de verdade contra a conta demo: fluxo completo testado via
   script Node com `fetch` (não curl direto — descobri que caracteres acentuados
   passados por linha de comando no Bash deste ambiente Windows chegavam
@@ -710,8 +716,8 @@ converter quem ainda não decidiu assinar.
 Feito — backend completo (auth, users, subjects, sessions, reports, subscriptions),
 frontend completo (todas as telas do MVP conectadas à API real), ambos validados:
 
-- Testes automatizados: suite completa do backend em **108/108** passando
-  (`npm run test --workspace=apps/api`)
+- Testes automatizados: suite completa do backend em **123/123** passando
+  (`npm run test --workspace=apps/api`), sem depender do `.env` local
 - Backend validado manualmente ponta a ponta contra Postgres/Redis reais (docker
   compose) em cada módulo: auth (registro/login/refresh com rotação), subjects
   (limite do plano FREE), sessions (sessão livre/vinculada, checagem de propriedade
@@ -745,8 +751,6 @@ Outras pendências, sem ordem definida ainda:
    também testar notificações push recebidas de verdade (ver seção "Funcionalidades
    Premium") e o fluxo de tarefas/rotina semanal (ver seção "Tarefas e rotina
    semanal")
-5. Mover tipos de `apps/web/src/lib/types.ts` para `packages/shared` (ver nota na
-   seção de frontend)
 
 ## Notas de ambiente (Windows) descobertas durante o desenvolvimento
 
@@ -932,6 +936,9 @@ Você é o **gestor**. Planeje, delegue, decida. Não implemente você mesmo o q
 - Se o servidor responder que o orçamento da tarefa estourou, **pare** e peça decisão.
 - Se um worker devolver relatório vago ou sem arquivos alterados, reformule a instrução com mais contexto antes de repetir.
 - Não peça ao programador para editar testes, nem ao testador para editar código de produção: troque de worker.
+- Não peça a worker para rodar a suíte completa nem o lint: peça só o arquivo de teste que importa. O `gate` roda tudo depois, sem LLM (medido: pedir a suíte completa custava voltas e tokens à toa).
+- Tarefa pequena com arquivo já conhecido pode pular o `explorar`. O `documentar` já se checa sozinho sem LLM e responde na hora quando nenhum `.md` editável cita o que mudou.
+- Acompanhe pelo painel ao vivo: `npm run painel` em `tools/agent-mcp` → http://127.0.0.1:4777. O `custos` separa tokens novos de leitura de cache.
 - Quando aprender uma convenção ou um erro recorrente do projeto, proponha ao usuário acrescentar ao `CONVENTIONS.md` (os workers leem esse arquivo).
 
 ### Template de instrução para `codar` / `testar`
