@@ -209,26 +209,31 @@ describe('health routes (GET /api/health)', () => {
   it('returns only status without checks in production environment', async () => {
     const actualEnv = jest.requireActual('../../src/config/env');
     let isolatedApp: typeof app;
-    jest.isolateModules(() => {
-      jest.doMock('../../src/config/env', () => ({
-        ...actualEnv,
-        env: {
-          ...actualEnv.env,
-          NODE_ENV: 'production',
+    try {
+      await jest.isolateModulesAsync(async () => {
+        jest.doMock('../../src/config/env', () => ({
+          ...actualEnv,
+          env: {
+            ...actualEnv.env,
+            NODE_ENV: 'production',
+          },
+        }));
+        const module = await import('../../src/app');
+        isolatedApp = module.app;
+      });
+
+      const response = await request(isolatedApp!).get('/api/health');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: {
+          status: 'ok',
         },
-      }));
-      isolatedApp = require('../../src/app').app;
-    });
-
-    const response = await request(isolatedApp!).get('/api/health');
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      success: true,
-      data: {
-        status: 'ok',
-      },
-    });
-    expect(response.body.data).not.toHaveProperty('checks');
+      });
+      expect(response.body.data).not.toHaveProperty('checks');
+    } finally {
+      jest.dontMock('../../src/config/env');
+    }
   });
 });
