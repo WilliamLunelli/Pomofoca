@@ -49,7 +49,10 @@ sh('init', '-q', '-b', 'main');
 sh('-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A');
 sh('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'init');
 
-const env = { ...process.env, AGENT_REPO_ROOT: repo };
+// Modo api sem chaves: valida a falha limpa sem acionar os CLIs reais (que gastariam a assinatura).
+const env = { ...process.env, AGENT_REPO_ROOT: repo, AGENT_PROVIDER_MODE: 'api' };
+delete env.ANTHROPIC_API_KEY;
+delete env.GOOGLE_GENERATIVE_AI_API_KEY;
 delete env.ANTHROPIC_API_KEY;
 delete env.GOOGLE_GENERATIVE_AI_API_KEY;
 

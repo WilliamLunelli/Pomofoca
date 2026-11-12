@@ -4,9 +4,15 @@
  * O GESTOR (Opus) NÃO está aqui: ele é a própria sessão do Claude Code que chama
  * este servidor MCP (rode `/model opus` no Claude Code). Aqui ficam só os WORKERS.
  *
+ * Dois modos (AGENT_PROVIDER_MODE):
+ *   - "cli" (padrão): workers rodam pelos CLIs oficiais logados na SUA assinatura,
+ *     sem chave de API: `claude -p` (Claude Pro/Max) e `gemini -p` (login Google / AI Pro).
+ *   - "api": workers rodam pelo AI SDK com ANTHROPIC_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY.
+ *
  * Para trocar o modelo de um papel sem mexer no código, use variáveis de ambiente:
- *   AGENT_MODEL_PROGRAMADOR=anthropic:claude-sonnet-5-5
- *   AGENT_MODEL_REVISOR=google:gemini-3.1-pro-preview
+ *   AGENT_MODEL_PROGRAMADOR=claude-cli:opus
+ *   AGENT_MODEL_REVISOR=gemini-cli:pro
+ *   AGENT_MODEL_TESTADOR=anthropic:claude-sonnet-5-5   (API)
  */
 import { execFileSync } from 'node:child_process';
 
@@ -21,7 +27,8 @@ export const ROLE_NAMES = [
 ] as const;
 export type Role = (typeof ROLE_NAMES)[number];
 
-export type Provider = 'anthropic' | 'google';
+export const PROVIDERS = ['anthropic', 'google', 'claude-cli', 'gemini-cli'] as const;
+export type Provider = (typeof PROVIDERS)[number];
 export interface ModelSpec {
   provider: Provider;
   model: string;
@@ -36,7 +43,12 @@ const SONNET = env('CLAUDE_SONNET_MODEL', 'claude-sonnet-5-5');
 const GEMINI_PRO = env('GEMINI_PRO_MODEL', 'gemini-3.1-pro-preview');
 const GEMINI_FLASH = env('GEMINI_FLASH_MODEL', 'gemini-3.8-flash');
 
-const DEFAULT_MODELS: Record<Role, ModelSpec> = {
+// Nos CLIs, aliases ("sonnet", "pro", "flash") apontam sempre para o modelo atual do seu plano.
+const CLAUDE_CLI = env('CLAUDE_CLI_MODEL', 'sonnet');
+const GEMINI_CLI_PRO = env('GEMINI_CLI_PRO_MODEL', 'pro');
+const GEMINI_CLI_FLASH = env('GEMINI_CLI_FLASH_MODEL', 'flash');
+
+const API_MODELS: Record<Role, ModelSpec> = {
   explorador: { provider: 'google', model: GEMINI_FLASH }, // contexto grande, barato
   programador: { provider: 'anthropic', model: SONNET }, // o código que vai pro projeto
   testador: { provider: 'google', model: GEMINI_PRO }, // modelo diferente do programador
@@ -46,19 +58,37 @@ const DEFAULT_MODELS: Record<Role, ModelSpec> = {
   documentacao: { provider: 'google', model: GEMINI_FLASH },
 };
 
+// Mesma divisão de trabalho, mas pelas assinaturas (sem API).
+const CLI_MODELS: Record<Role, ModelSpec> = {
+  explorador: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
+  programador: { provider: 'claude-cli', model: CLAUDE_CLI },
+  testador: { provider: 'gemini-cli', model: GEMINI_CLI_PRO },
+  revisor: { provider: 'gemini-cli', model: GEMINI_CLI_PRO },
+  seguranca: { provider: 'claude-cli', model: CLAUDE_CLI },
+  triagem: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
+  documentacao: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
+};
+
+export function providerMode(): 'cli' | 'api' {
+  const m = process.env.AGENT_PROVIDER_MODE?.trim().toLowerCase();
+  if (!m || m === 'cli') return 'cli';
+  if (m === 'api') return 'api';
+  throw new Error('AGENT_PROVIDER_MODE inválido: use "cli" ou "api".');
+}
+
 export function modelFor(role: Role): ModelSpec {
   const override = process.env[`AGENT_MODEL_${role.toUpperCase()}`]?.trim();
   if (override) {
     const [provider, ...rest] = override.split(':');
     const model = rest.join(':');
-    if ((provider === 'anthropic' || provider === 'google') && model) {
-      return { provider, model };
+    if (provider && (PROVIDERS as readonly string[]).includes(provider) && model) {
+      return { provider: provider as Provider, model };
     }
     throw new Error(
-      `AGENT_MODEL_${role.toUpperCase()} inválido: use "anthropic:<modelo>" ou "google:<modelo>"`,
+      `AGENT_MODEL_${role.toUpperCase()} inválido: use "<provedor>:<modelo>" com provedor em ${PROVIDERS.join(', ')}`,
     );
   }
-  return DEFAULT_MODELS[role];
+  return (providerMode() === 'cli' ? CLI_MODELS : API_MODELS)[role];
 }
 
 /** Limites por papel: passos do loop de ferramentas e tamanho máximo da resposta. */

@@ -4,8 +4,7 @@
       "command": "node",
       "args": ["tools/agent-mcp/dist/server.js"],
       "env": {
-        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
-        "GOOGLE_GENERATIVE_AI_API_KEY": "${GOOGLE_GENERATIVE_AI_API_KEY}"
+        "AGENT_PROVIDER_MODE": "cli"
       }
     }
   }

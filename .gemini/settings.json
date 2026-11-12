@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "pomofoca-agents": {
+      "command": "node",
+      "args": ["tools/agent-mcp/dist/server.js"],
+      "env": {
+        "AGENT_PROVIDER_MODE": "cli"
+      },
+      "timeout": 900000
+    }
+  },
+  "context": {
+    "fileName": ["GEMINI.md", "CLAUDE.md"]
+  }
+}

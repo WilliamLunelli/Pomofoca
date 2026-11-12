@@ -11,6 +11,7 @@ import {
   type ModelSpec,
   type Role,
 } from './config.js';
+import { changedPaths, enforceWritePolicy, isCliProvider, runCli } from './cli-runner.js';
 import { clip, diffStat, fullDiff } from './compress.js';
 import { buildTools, type ToolPolicy } from './fs-tools.js';
 import { budgetBlock, record } from './ledger.js';
@@ -96,20 +97,60 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
     }
 
     const limits = ROLE_LIMITS[a.role];
-    const result = await generateText({
-      model: (a.modelResolver ?? resolveModel)(spec),
-      system: systemPrompt(a.role, root),
-      prompt,
-      tools:
-        a.role === 'triagem' ? undefined : buildTools(budgetKey, root, policyFor(a.role)),
-      stopWhen: isStepCount(limits.maxSteps),
-      maxOutputTokens: limits.maxOutputTokens,
-      abortSignal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
-    });
+    const policy = policyFor(a.role);
+    const system = systemPrompt(a.role, root);
+    let text: string;
+    let steps: number;
+    let inTok: number;
+    let outTok: number;
+    const notes: string[] = [];
 
-    const usage = result.totalUsage;
-    const inTok = usage?.inputTokens ?? 0;
-    const outTok = usage?.outputTokens ?? 0;
+    if (isCliProvider(spec.provider)) {
+      // Worktree limpo antes do CLI: a política pós-execução só desfaz o que ESTE worker fez.
+      if (meta) await checkpoint(meta.dir, `agent(checkpoint): antes de ${a.role}`);
+      const before = meta ? [] : await changedPaths(root);
+      const r = await runCli({
+        spec: { provider: spec.provider, model: spec.model },
+        role: a.role,
+        root,
+        system,
+        prompt,
+        policy,
+        timeoutMs: WORKER_TIMEOUT_MS,
+      });
+      ({ text, steps, inputTokens: inTok, outputTokens: outTok } = r);
+      if (meta) {
+        const reverted = await enforceWritePolicy(meta.dir, policy);
+        if (reverted.length) {
+          notes.push(
+            `POLÍTICA: ${reverted.length} arquivo(s) fora da permissão do papel foram desfeitos: ${reverted.slice(0, 10).join(', ')}`,
+          );
+        }
+      } else {
+        // Sem worktree (explorador na raiz): não dá para desfazer com segurança; só avisa.
+        const novos = (await changedPaths(root)).filter((p) => !before.includes(p));
+        if (novos.length) {
+          notes.push(
+            `ATENÇÃO: o worker alterou arquivos na raiz do repo: ${novos.slice(0, 10).join(', ')}`,
+          );
+        }
+      }
+    } else {
+      const result = await generateText({
+        model: (a.modelResolver ?? resolveModel)(spec),
+        system,
+        prompt,
+        tools: a.role === 'triagem' ? undefined : buildTools(budgetKey, root, policy),
+        stopWhen: isStepCount(limits.maxSteps),
+        maxOutputTokens: limits.maxOutputTokens,
+        abortSignal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
+      });
+      text = result.text;
+      steps = result.steps.length;
+      inTok = result.totalUsage?.inputTokens ?? 0;
+      outTok = result.totalUsage?.outputTokens ?? 0;
+    }
+
     record({
       ts: new Date().toISOString(),
       taskId: budgetKey,
@@ -131,11 +172,12 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
     }
 
     const body =
-      result.text.trim() ||
+      text.trim() ||
       '(o worker não produziu relatório final — provável limite de passos; veja o diffstat)';
-    const header = `[${a.role} · ${modelLabel} · ${result.steps.length} passo(s) · ${inTok + outTok} tokens]`;
+    const extraNotes = notes.length ? `\n\n${notes.join('\n')}` : '';
+    const header = `[${a.role} · ${modelLabel} · ${steps} passo(s) · ${inTok + outTok} tokens]`;
     return {
-      text: `${header}\n${clip(body, MAX_REPORT_CHARS)}${changes}`,
+      text: `${header}\n${clip(body, MAX_REPORT_CHARS)}${extraNotes}${changes}`,
       isError: false,
     };
   } catch (e) {

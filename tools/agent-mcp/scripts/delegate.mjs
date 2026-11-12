@@ -26,6 +26,8 @@ git('-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A');
 git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'init');
 
 process.env.AGENT_REPO_ROOT = repo;
+// Este teste cobre o caminho via AI SDK (modelo simulado); o caminho via CLI está em scripts/cli.mjs.
+process.env.AGENT_PROVIDER_MODE = 'api';
 process.env.AGENT_MAX_DELEGATIONS_PER_TASK = '4';
 const { delegate } = await import(dist('delegate.js'));
 const { openTask, closeTask } = await import(dist('workspace.js'));
