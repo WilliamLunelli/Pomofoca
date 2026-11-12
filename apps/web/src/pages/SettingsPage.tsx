@@ -22,15 +22,17 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className="flex w-[42px] flex-none justify-start rounded-full p-0.5 transition-colors"
+      className="seg-btn flex w-[42px] flex-none justify-start rounded-full p-0.5"
       style={{
-        justifyContent: checked ? 'flex-end' : 'flex-start',
         background: checked ? 'var(--color-accent)' : 'var(--f-track)',
       }}
     >
       <span
-        className="h-[18px] w-[18px] rounded-full bg-surface"
-        style={{ boxShadow: 'var(--shadow-sm)' }}
+        className="switch-thumb h-[18px] w-[18px] rounded-full bg-surface"
+        style={{
+          boxShadow: 'var(--shadow-sm)',
+          transform: checked ? 'translateX(20px)' : 'translateX(0)',
+        }}
       />
     </button>
   );
@@ -252,7 +254,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-[660px] p-6 md:p-8">
       <h3 className="mb-8 text-xl">Configurações</h3>
 
-      <div className="flex flex-col gap-8">
+      <div className="stagger flex flex-col gap-8">
         <section>
           <h6 className="mb-4">Durações</h6>
           <div className="card px-6 py-1">
@@ -324,7 +326,7 @@ export function SettingsPage() {
           <div className="mb-4 flex gap-4">
             <button
               onClick={() => prefs.setTheme('dark')}
-              className="flex-1 rounded-md border p-6 text-left text-[13px]"
+              className="seg-btn flex-1 rounded-md border p-6 text-left text-[13px]"
               style={{
                 borderColor:
                   prefs.theme === 'dark' ? 'var(--color-accent)' : 'var(--color-divider)',
@@ -335,7 +337,7 @@ export function SettingsPage() {
             </button>
             <button
               onClick={() => prefs.setTheme('light')}
-              className="flex-1 rounded-md border p-6 text-left text-[13px]"
+              className="seg-btn flex-1 rounded-md border p-6 text-left text-[13px]"
               style={{
                 borderColor:
                   prefs.theme === 'light'
@@ -387,7 +389,7 @@ export function SettingsPage() {
               <button
                 key={d}
                 onClick={() => prefs.setDensity(d)}
-                className="flex-1 rounded-sm border px-3 py-2 text-xs"
+                className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
                 style={{
                   borderColor:
                     prefs.density === d ? 'var(--color-accent)' : 'var(--color-divider)',
@@ -403,7 +405,7 @@ export function SettingsPage() {
               <button
                 key={f}
                 onClick={() => prefs.setFontSize(f)}
-                className="flex-1 rounded-sm border px-3 py-2 text-xs"
+                className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
                 style={{
                   borderColor:
                     prefs.fontSize === f ? 'var(--color-accent)' : 'var(--color-divider)',

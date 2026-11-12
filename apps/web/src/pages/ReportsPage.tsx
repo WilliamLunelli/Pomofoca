@@ -12,7 +12,9 @@ import {
   XAxis,
 } from 'recharts';
 
+import { CountUp } from '@/components/CountUp';
 import { Foki } from '@/components/Foki';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { api, ApiError } from '@/lib/api';
@@ -70,6 +72,7 @@ function toggleStyle(active: boolean) {
 export function ReportsPage() {
   const { user } = useAuth();
   const { reportsLayout, setReportsLayout } = usePreferences();
+  const reducedMotion = useReducedMotion();
   const [period, setPeriod] = useState<Period>('week');
 
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -214,10 +217,14 @@ export function ReportsPage() {
   const streakCard = streak && (
     <div className="card flex items-center gap-4 p-6">
       <Foki state={streak.currentStreak > 0 ? 'idle' : 'sleeping'} size={44} />
-      <Flame weight="fill" size={28} className="text-cta" />
+      <Flame
+        weight="fill"
+        size={28}
+        className={`text-cta${streak.currentStreak > 0 ? ' flame-flicker' : ''}`}
+      />
       <div>
         <div className="font-heading text-xl tabular-nums">
-          {streak.currentStreak} dias
+          <CountUp value={streak.currentStreak} /> dias
         </div>
         <div className="text-xs text-muted">
           sequência atual · recorde {streak.recordStreak}
@@ -311,7 +318,7 @@ export function ReportsPage() {
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
-                className="rounded-sm border px-2.5 py-1.5 text-xs transition-colors"
+                className="seg-btn rounded-sm border px-2.5 py-1.5 text-xs"
                 style={toggleStyle(period === p.value)}
               >
                 {p.label}
@@ -321,14 +328,14 @@ export function ReportsPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setReportsLayout('narrative')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={toggleStyle(reportsLayout === 'narrative')}
             >
               Narrativa
             </button>
             <button
               onClick={() => setReportsLayout('dense')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={toggleStyle(reportsLayout === 'dense')}
             >
               Denso
@@ -353,35 +360,35 @@ export function ReportsPage() {
       )}
 
       {!blocked && summary && reportsLayout === 'narrative' && (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="stagger flex flex-col gap-6">
+          <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="card p-6">
               <h6 className="mb-3">Minutos estudados</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {formatMinutes(summary.studyMinutes)}
+                <CountUp value={summary.studyMinutes} format={formatMinutes} />
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Sessões completas</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {summary.sessionsCompleted}
+                <CountUp value={summary.sessionsCompleted} />
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Taxa de conclusão</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {Math.round(summary.completionRate * 100)}%
+                <CountUp value={Math.round(summary.completionRate * 100)} />%
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Dias ativos</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {summary.activeDays}
+                <CountUp value={summary.activeDays} />
               </div>
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="stagger grid gap-6 lg:grid-cols-2">
             <div className="card p-8">
               <h6 className="mb-6">Distribuição por matéria</h6>
               {donutData.length > 0 ? (
@@ -395,6 +402,9 @@ export function ReportsPage() {
                         outerRadius={68}
                         paddingAngle={2}
                         stroke="none"
+                        isAnimationActive={!reducedMotion}
+                        animationDuration={700}
+                        animationEasing="ease-out"
                       >
                         {donutData.map((entry) => (
                           <Cell key={entry.name} fill={entry.color} />
@@ -446,6 +456,9 @@ export function ReportsPage() {
                     dataKey="minutes"
                     fill="var(--color-accent)"
                     radius={[3, 3, 0, 0]}
+                    isAnimationActive={!reducedMotion}
+                    animationDuration={700}
+                    animationEasing="ease-out"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -460,7 +473,7 @@ export function ReportsPage() {
 
       {!blocked && summary && reportsLayout === 'dense' && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="flex flex-col gap-6">
+          <div className="stagger flex flex-col gap-6">
             {heatmapCard}
 
             <div className="card p-8">
@@ -478,6 +491,9 @@ export function ReportsPage() {
                     dataKey="minutes"
                     fill="var(--color-accent)"
                     radius={[3, 3, 0, 0]}
+                    isAnimationActive={!reducedMotion}
+                    animationDuration={700}
+                    animationEasing="ease-out"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -524,31 +540,31 @@ export function ReportsPage() {
             {insightsCard}
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="stagger flex flex-col gap-4">
             {streakCard}
 
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Minutos</h6>
               <div className="font-heading text-xl tabular-nums">
-                {formatMinutes(summary.studyMinutes)}
+                <CountUp value={summary.studyMinutes} format={formatMinutes} />
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Sessões</h6>
               <div className="font-heading text-xl tabular-nums">
-                {summary.sessionsCompleted}
+                <CountUp value={summary.sessionsCompleted} />
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Conclusão</h6>
               <div className="font-heading text-xl tabular-nums">
-                {Math.round(summary.completionRate * 100)}%
+                <CountUp value={Math.round(summary.completionRate * 100)} />%
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Dias ativos</h6>
               <div className="font-heading text-xl tabular-nums">
-                {summary.activeDays}
+                <CountUp value={summary.activeDays} />
               </div>
             </div>
 
@@ -559,6 +575,7 @@ export function ReportsPage() {
                   {breakdown?.subjects.map((s) => (
                     <div
                       key={s.subjectId ?? 'none'}
+                      className="bar-grow"
                       style={{
                         width: `${s.percentage}%`,
                         background: s.color ?? 'var(--f-muted)',

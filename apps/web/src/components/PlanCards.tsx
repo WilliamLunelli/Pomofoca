@@ -55,7 +55,7 @@ function ActionButton({ action, primary }: { action: PlanCardAction; primary: bo
  */
 export function PlanCards({ free, monthly, yearly }: PlanCardsProps) {
   return (
-    <div className="grid gap-6 sm:grid-cols-3">
+    <div className="stagger grid gap-6 sm:grid-cols-3">
       <div className="card flex flex-col gap-4 p-8">
         <h6 className="m-0">Gratuito</h6>
         <div className="flex items-baseline gap-1">

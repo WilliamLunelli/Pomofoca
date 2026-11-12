@@ -167,7 +167,7 @@ export function SubjectsPage() {
           reserva a altura do mais alto - isso e comportamento normal de grid - mas
           cada card fica no topo da propria celula em vez de esticar o fundo). */}
       <div
-        className="grid items-start gap-4"
+        className="stagger grid items-start gap-4"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
       >
         {active.map((s) => {

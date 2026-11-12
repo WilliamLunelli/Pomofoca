@@ -6,7 +6,7 @@ import {
   Books,
   Timer as TimerIcon,
 } from '@phosphor-icons/react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
 
@@ -29,6 +29,7 @@ function initials(name: string): string {
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const location = useLocation();
 
   return (
     <div className="flex min-h-screen">
@@ -102,7 +103,10 @@ export function AppShell() {
             nelas mesmas pra se centralizar dentro deste container, senao so
             trocam "colado na borda da tela" por "colado na borda deste box". */}
         <div className="mx-auto max-w-[1600px]">
-          <Outlet />
+          {/* key = rota: remonta o wrapper e dispara a animacao de entrada (sem saida) */}
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
         </div>
       </main>
 

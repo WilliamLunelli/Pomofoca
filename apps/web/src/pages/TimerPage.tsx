@@ -10,7 +10,9 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CountUp } from '@/components/CountUp';
 import { Foki, type FokiState } from '@/components/Foki';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { usePomodoroSettings, type BackgroundSound } from '@/hooks/usePomodoroSettings';
@@ -91,6 +93,7 @@ export function TimerPage() {
   const [mode, setMode] = useState<Mode>('FOCUS');
   const [cycle, setCycle] = useState(1);
   const [remaining, setRemaining] = useState(() => settings.focusMinutes * 60);
+  const reducedMotion = useReducedMotion();
   const [running, setRunning] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -384,6 +387,17 @@ export function TimerPage() {
   const elapsed = totalRef.current - remaining;
   const offset = CIRCUMFERENCE * (totalRef.current > 0 ? elapsed / totalRef.current : 0);
   const ringColor = mode === 'FOCUS' ? 'var(--color-accent)' : 'var(--f-break)';
+  // Anel suave (1000ms linear) so enquanto roda e avanca; em saltos (reset, troca de
+  // modo/ciclo, offset diminuindo) a transicao some pra nao girar ao contrario.
+  const prevOffsetRef = useRef(offset);
+  const ringJump = offset < prevOffsetRef.current;
+  useEffect(() => {
+    prevOffsetRef.current = offset;
+  }, [offset]);
+  const ringTransition =
+    reducedMotion || !running || ringJump
+      ? 'stroke 400ms ease'
+      : 'stroke-dashoffset 1000ms linear, stroke 400ms ease';
 
   const timerFokiState: FokiState = celebrating
     ? 'celebrating'
@@ -437,7 +451,9 @@ export function TimerPage() {
     <div className="relative min-h-full">
       <audio ref={audioRef} />
       <div
-        className="pointer-events-none absolute inset-0 transition-colors duration-500"
+        className={`pointer-events-none absolute inset-0 transition-colors duration-500${
+          running && mode === 'FOCUS' ? ' glow-pulse' : ''
+        }`}
         style={{
           background:
             mode === 'FOCUS'
@@ -457,7 +473,7 @@ export function TimerPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setTimerLayout('zen')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={{
                 borderColor: isZen ? 'var(--color-accent)' : 'var(--color-divider)',
                 background: isZen ? 'var(--color-accent-tint)' : 'transparent',
@@ -468,7 +484,7 @@ export function TimerPage() {
             </button>
             <button
               onClick={() => setTimerLayout('panel')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={{
                 borderColor: !isZen ? 'var(--color-accent)' : 'var(--color-divider)',
                 background: !isZen ? 'var(--color-accent-tint)' : 'transparent',
@@ -519,14 +535,13 @@ export function TimerPage() {
                   strokeLinecap="round"
                   strokeDasharray={CIRCUMFERENCE}
                   strokeDashoffset={offset}
-                  style={{
-                    transition: 'stroke-dashoffset 400ms linear, stroke 400ms ease',
-                  }}
+                  style={{ transition: ringTransition }}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
                 <div
-                  className="font-heading leading-none tracking-tight tabular-nums"
+                  key={running ? 'running' : 'paused'}
+                  className="clock-pop font-heading leading-none tracking-tight tabular-nums"
                   style={{ fontSize: 'clamp(56px, 5vw, 92px)' }}
                 >
                   {formatClock(remaining)}
@@ -582,7 +597,7 @@ export function TimerPage() {
           </div>
 
           {!isZen && (
-            <div className="flex flex-col gap-6">
+            <div className="stagger flex flex-col gap-6">
               <div>
                 <h6 className="mb-4">Matéria</h6>
                 {subjectPicker}
@@ -598,7 +613,7 @@ export function TimerPage() {
                         <div key={task.id} className="flex items-center gap-2">
                           <button
                             onClick={() => setSelectedTaskId(isActive ? null : task.id)}
-                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors"
+                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors duration-[240ms]"
                             style={
                               isActive
                                 ? {
@@ -660,7 +675,7 @@ export function TimerPage() {
                           {goalProgress !== null && (
                             <div className="h-1 overflow-hidden rounded-full bg-track">
                               <div
-                                className="h-full rounded-full"
+                                className="bar-grow h-full rounded-full"
                                 style={{ width: `${goalProgress}%`, background: s.color }}
                               />
                             </div>
@@ -702,10 +717,14 @@ export function TimerPage() {
               {streak && (
                 <div className="card flex items-center gap-3 p-4">
                   <Foki state={streakFokiState} size={40} />
-                  <Flame weight="fill" size={20} className="text-cta" />
+                  <Flame
+                    weight="fill"
+                    size={20}
+                    className={`text-cta${streak.currentStreak > 0 ? ' flame-flicker' : ''}`}
+                  />
                   <div className="text-[13px]">
                     <b className="font-heading font-medium">
-                      {streak.currentStreak} dias
+                      <CountUp value={streak.currentStreak} /> dias
                     </b>{' '}
                     de sequência
                     <div className="text-[11px] text-muted">
