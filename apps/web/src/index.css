@@ -560,7 +560,9 @@ a:focus-visible {
     transition: opacity 80ms linear;
   }
   .foki-head-tilt,
-  .foki-flipper {
+  .foki-flipper,
+  .foki-flipper--l,
+  .foki-flipper--r {
     transition: none;
   }
   .foki-z {

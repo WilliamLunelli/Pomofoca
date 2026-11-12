@@ -101,9 +101,11 @@ export function TimerPage() {
   // Foki triste por ~1.2s ao pular um ciclo FOCUS antes do fim
   const [skipSad, setSkipSad] = useState(false);
   const skipSadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebratingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
       if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+      if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
     },
     [],
   );
@@ -286,7 +288,8 @@ export function TimerPage() {
           logSession(mode, totalRef.current, true);
           if (mode === 'FOCUS') {
             setCelebrating(true);
-            setTimeout(() => setCelebrating(false), 1600);
+            if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
+            celebratingTimerRef.current = setTimeout(() => setCelebrating(false), 1600);
           }
           const { nextMode, nextCycle } = advance();
           const shouldAutoStart = settings.autoStartNext;
@@ -333,11 +336,20 @@ export function TimerPage() {
     );
   }
 
+  function clearFokiTimers() {
+    if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
+    celebratingTimerRef.current = null;
+    if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+    skipSadTimerRef.current = null;
+    setCelebrating(false);
+    setSkipSad(false);
+  }
+
   function skip() {
     const elapsed = totalRef.current - remaining;
+    clearFokiTimers();
     if (mode === 'FOCUS' && remaining > 0) {
       setSkipSad(true);
-      if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
       skipSadTimerRef.current = setTimeout(() => setSkipSad(false), 1200);
     }
     if (elapsed > 0) logSession(mode, elapsed, false);
@@ -355,6 +367,7 @@ export function TimerPage() {
   }
 
   function reset() {
+    clearFokiTimers();
     setRunning(false);
     startedAtRef.current = null;
     setRemaining(totalRef.current);

@@ -11,7 +11,7 @@ interface FokiProps {
 
 const OUTLINE = { stroke: 'var(--foki-outline)', strokeWidth: 1.5 } as const;
 const CHEEK = 'color-mix(in srgb, var(--color-accent) 45%, transparent)';
-const PHONE_EDGE = 'color-mix(in srgb, var(--color-accent) 65%, black)';
+const PHONE_EDGE = 'color-mix(in srgb, var(--color-accent) 65%, var(--foki-eye))';
 
 // Estrelinha de 4 pontas (centrada na origem)
 const STAR = 'M0 -6 Q1 -1 6 0 Q1 1 0 6 Q-1 1 -6 0 Q-1 -1 0 -6Z';
@@ -59,22 +59,28 @@ export function Foki({ state, size = 64, className }: FokiProps) {
 
   // Piscar em intervalos aleatorios (2.5s a 6s), as vezes duas vezes seguidas
   useEffect(() => {
-    if (reduced || state === 'sleeping') return;
+    // olhos piscaveis so aparecem em idle/curious
+    if (reduced || (state !== 'idle' && state !== 'curious')) return;
+    let active = true;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const blinkOnce = (done: () => void) => {
+      if (!active) return;
       blinkRef.current?.classList.add('foki-blink');
       timers.push(
         setTimeout(() => {
+          if (!active) return;
           blinkRef.current?.classList.remove('foki-blink');
           done();
         }, 140),
       );
     };
     const schedule = () => {
+      if (!active) return;
       timers.push(
         setTimeout(
           () => {
             blinkOnce(() => {
+              if (!active) return;
               if (Math.random() < 0.25) {
                 timers.push(setTimeout(() => blinkOnce(schedule), 160));
               } else {
@@ -88,6 +94,7 @@ export function Foki({ state, size = 64, className }: FokiProps) {
     };
     schedule();
     return () => {
+      active = false;
       timers.forEach(clearTimeout);
       blinkRef.current?.classList.remove('foki-blink');
     };
@@ -401,6 +408,7 @@ export function Foki({ state, size = 64, className }: FokiProps) {
 
         {/* brilhos da comemoracao (estrelas SVG, montadas so no estado) */}
         {state === 'celebrating' &&
+          !reduced &&
           SPARKLES.map((sp, i) => (
             <g key={i} transform={`translate(${sp.x} ${sp.y}) scale(${sp.s})`}>
               <path
