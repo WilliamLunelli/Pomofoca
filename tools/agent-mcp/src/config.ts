@@ -162,6 +162,12 @@ export interface GateCheck {
 export const GATE_CHECKS: GateCheck[] = [
   { name: 'lint', script: 'lint', cwd: '.' },
   { name: 'test', script: 'test', cwd: 'apps/api' },
+  // Type-check real dos dois pacotes que não têm script "typecheck": o `build` de shared é
+  // `tsc -p` (emite dist/, ignorado pelo git) e o de web é `tsc -b && vite build` (o tsconfig
+  // de web tem noEmit; o vite gera dist/, também ignorado). No worktree, web resolve
+  // @pomofoca/shared por caminho relativo para o src do PRÓPRIO worktree (paths + alias do vite).
+  { name: 'build-shared', script: 'build', cwd: 'packages/shared' },
+  { name: 'build-web', script: 'build', cwd: 'apps/web' },
 ];
 
 let cachedRoot: string | undefined;
