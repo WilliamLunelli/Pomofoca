@@ -40,6 +40,17 @@
   --f-warn: #f2a93b;
   --f-muted: #6b6572;
 
+  /* Mascote Foki: tons proprios (dorso/corpo/barriga, contorno, olho, brilho) com
+     valor em cada tema, pra nao virar mancha branca no escuro. */
+  --foki-back: #b6bcd6;
+  --foki-mid: #d9ddf0;
+  --foki-light: #f6f7fd;
+  --foki-outline: #8a90ad;
+  --foki-eye: #2b2d36;
+  --foki-shine: #ffffff;
+  --foki-shadow: rgba(31, 27, 36, 0.18);
+  --foki-sparkle: #ffe9a8;
+
   --font-heading: 'Inter', system-ui, sans-serif;
   --font-heading-weight: 500;
   --font-body: 'Inter', system-ui, sans-serif;
@@ -81,6 +92,15 @@
   --color-accent: #9184d9;
   --color-accent-2: #a7a1db;
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --foki-back: #565b82;
+  --foki-mid: #7b82ab;
+  --foki-light: #aeb4d4;
+  --foki-outline: #3a3e5e;
+  --foki-eye: #151726;
+  --foki-shine: #e9ebf8;
+  --foki-shadow: rgba(0, 0, 0, 0.45);
+  --foki-sparkle: #ffe9a8;
 
   --landing-track: color-mix(in srgb, var(--color-text) 10%, transparent);
   --landing-muted: color-mix(in srgb, var(--color-text) 74%, transparent);

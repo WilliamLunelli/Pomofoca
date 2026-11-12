@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Foki } from '@/components/Foki';
 
 import { DEMO_SUBJECTS } from './demoData';
-import { useReducedMotion } from './useReducedMotion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 const CYCLE_MS = 12_000; // o anel completa em 12s
 const CELEBRATE_MS = 1_600;

@@ -98,6 +98,15 @@ export function TimerPage() {
   const [todayBreakdown, setTodayBreakdown] = useState<ReportBreakdown | null>(null);
   const [streak, setStreak] = useState<ReportStreak | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  // Foki triste por ~1.2s ao pular um ciclo FOCUS antes do fim
+  const [skipSad, setSkipSad] = useState(false);
+  const skipSadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+    },
+    [],
+  );
 
   const startedAtRef = useRef<Date | null>(null);
   const totalRef = useRef(durationFor('FOCUS', settings));
@@ -326,6 +335,11 @@ export function TimerPage() {
 
   function skip() {
     const elapsed = totalRef.current - remaining;
+    if (mode === 'FOCUS' && remaining > 0) {
+      setSkipSad(true);
+      if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+      skipSadTimerRef.current = setTimeout(() => setSkipSad(false), 1200);
+    }
     if (elapsed > 0) logSession(mode, elapsed, false);
     setRunning(false);
     const { nextMode, nextCycle } = advance();
@@ -360,9 +374,13 @@ export function TimerPage() {
 
   const timerFokiState: FokiState = celebrating
     ? 'celebrating'
-    : running && mode === 'FOCUS'
-      ? 'focused'
-      : 'idle';
+    : skipSad
+      ? 'sad'
+      : running && mode === 'FOCUS'
+        ? 'focused'
+        : !running && elapsed > 0
+          ? 'curious'
+          : 'idle';
   const streakFokiState: FokiState =
     streak && streak.currentStreak > 0 ? 'idle' : 'sleeping';
   const isZen = timerLayout === 'zen';
@@ -461,7 +479,10 @@ export function TimerPage() {
               compartilhado, o Zen (sem sidebar disputando espaco) deixava o anel
               crescer mais que no Painel na MESMA largura de janela. */}
           <div className="flex w-full max-w-[640px] flex-col items-center gap-6">
-            <Foki state={timerFokiState} size={56} />
+            {/* sobrepoe a borda superior do anel (margem negativa), sem tocar o relogio */}
+            <div className="pointer-events-none relative z-10 -mb-[44px]">
+              <Foki state={timerFokiState} size={80} />
+            </div>
             <div
               className="relative aspect-square w-full"
               style={{ maxWidth: 'clamp(340px, 30vw, 560px)' }}

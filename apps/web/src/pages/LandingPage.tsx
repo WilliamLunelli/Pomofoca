@@ -16,7 +16,7 @@ import { DemoSubjects } from '@/components/landing/DemoSubjects';
 import { DemoTimer } from '@/components/landing/DemoTimer';
 import { DemoWeek } from '@/components/landing/DemoWeek';
 import { LandingHeader } from '@/components/landing/LandingHeader';
-import { useReducedMotion } from '@/components/landing/useReducedMotion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
 import { useAuth } from '@/context/AuthContext';
 import { YEARLY_MONTHLY_EQUIVALENT, YEARLY_PRICE, formatBRL } from '@/lib/plans';
