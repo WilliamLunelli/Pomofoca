@@ -101,10 +101,10 @@ export function LandingPage() {
       <LandingHeader loggedIn={!!user} />
 
       <section className="flex min-h-[100dvh] items-center px-6 pb-16 pt-24 md:px-12">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-8 lg:grid-cols-[1fr_1.15fr]">
           <div>
             <h1
-              className="hero-enter mb-5 max-w-xl leading-[1.1]"
+              className="hero-enter mb-5 leading-[1.1]"
               style={{ fontSize: 'var(--text-display)', textWrap: 'balance' }}
             >
               A maioria dos apps de pomodoro esquece o que você estudou ontem.
@@ -131,7 +131,7 @@ export function LandingPage() {
             </div>
           </div>
           <div
-            className="hero-enter relative md:pb-24 md:pr-8"
+            className="hero-enter relative md:pb-36 md:pr-10"
             style={{ '--hero-delay': '240ms' } as CSSProperties}
           >
             <div
@@ -140,7 +140,7 @@ export function LandingPage() {
             />
             <DemoTimer className="relative z-10 w-full md:w-fit md:max-w-full" />
             <div
-              className="card relative z-20 mt-4 w-full p-4 md:absolute md:-bottom-2 md:-right-2 md:mt-0 md:w-[440px] md:p-5"
+              className="card relative z-20 mt-4 w-full p-4 md:absolute md:bottom-0 md:right-0 md:mt-0 md:w-[540px] md:p-5"
               style={{ boxShadow: 'var(--shadow-lg)' }}
             >
               <DemoHeatmap weeks={30} />

@@ -45,7 +45,7 @@
   --font-body: 'Inter', system-ui, sans-serif;
 
   /* Tamanho de display (titulo do hero da landing). Vale para os dois temas. */
-  --text-display: clamp(1.875rem, 1.1rem + 2.2vw, 2.75rem);
+  --text-display: clamp(1.75rem, 1rem + 2vw, 2.5rem);
 
   /* Landing: trilho do anel do timer demo, texto secundario com contraste AA e
      halo atras da composicao do hero. Valor proprio em cada tema. */

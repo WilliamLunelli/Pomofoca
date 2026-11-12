@@ -69,7 +69,7 @@ export function DemoTimer({ className }: { className?: string }) {
       role="img"
       aria-label="Demonstração de um timer pomodoro em andamento"
     >
-      <div className="relative aspect-square w-[220px] max-w-full shrink-0 md:w-[260px]">
+      <div className="relative aspect-square w-[220px] max-w-full shrink-0 md:w-[300px]">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-full w-full -rotate-90">
           <circle
             cx={SIZE / 2}
@@ -101,7 +101,7 @@ export function DemoTimer({ className }: { className?: string }) {
           </span>
         </div>
       </div>
-      <Foki state={fokiState} size={80} className="shrink-0" />
+      <Foki state={fokiState} size={96} className="shrink-0" />
     </div>
   );
 }
