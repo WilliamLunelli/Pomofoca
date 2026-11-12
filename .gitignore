@@ -22,3 +22,9 @@ skills-lock.json
 
 # Build de dev do service worker (vite-plugin-pwa, modo devOptions.enabled)
 apps/web/dev-dist/
+
+# agent-mcp (servidor MCP multiagente, tools/agent-mcp/)
+.agent-logs/
+.agent-worktrees/
+tools/agent-mcp/node_modules/
+tools/agent-mcp/dist/

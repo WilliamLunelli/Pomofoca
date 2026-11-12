@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pomofoca-agents": {
+      "command": "node",
+      "args": ["tools/agent-mcp/dist/server.js"],
+      "env": {
+        "AGENT_PROVIDER_MODE": "cli"
+      }
+    }
+  }
+}
