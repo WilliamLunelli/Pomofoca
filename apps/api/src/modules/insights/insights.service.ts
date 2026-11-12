@@ -495,7 +495,7 @@ export function computeRoutineMismatch(
   return {
     type: 'routine_mismatch',
     title: 'Rotina fora do compasso',
-    description: `Você planejou ${name} às ${WEEKDAY_NAMES[best.block.dayOfWeek]}, ${best.block.startTime}-${best.block.endTime}, mas nas últimas semanas estudou essa matéria por volta de ${BLOCK_LABELS[best.topBlockIndex]} (${best.off} de ${best.off + best.on} vezes). Que tal ajustar o bloco?`,
+    description: `Você planejou ${name} ${best.block.dayOfWeek === 0 || best.block.dayOfWeek === 6 ? 'aos' : 'às'} ${WEEKDAY_NAMES[best.block.dayOfWeek]}, ${best.block.startTime}-${best.block.endTime}, mas nas últimas semanas estudou essa matéria por volta de ${BLOCK_LABELS[best.topBlockIndex]} (${best.off} de ${best.off + best.on} vezes). Que tal ajustar o bloco?`,
     dataPoints: best.sessionCount,
   };
 }
@@ -574,8 +574,15 @@ export async function computeInsightsForUser(
   const interruptionSince = new Date(
     now.getTime() - INTERRUPTION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
   );
+  const routineMismatchSince = new Date(
+    now.getTime() - ROUTINE_MISMATCH_LOOKBACK_WEEKS * 7 * 24 * 60 * 60 * 1000,
+  );
   const earliestSince = new Date(
-    Math.min(peakHoursSince.getTime(), interruptionSince.getTime()),
+    Math.min(
+      peakHoursSince.getTime(),
+      interruptionSince.getTime(),
+      routineMismatchSince.getTime(),
+    ),
   );
 
   const [rawSessions, rawDailyStats, rawSubjects, rawBlocks, rawRoutineSubjects] =
