@@ -515,5 +515,80 @@ describe('insights.service - computeRoutineMismatch', () => {
 
     expect(result).toBeNull();
   });
+
+  it('detects routine mismatch when sessions omit durationSeconds (counted by start instant)', () => {
+    const block: RoutineBlockRecord = {
+      dayOfWeek: 2, // terça
+      startTime: '14:00',
+      endTime: '16:00',
+      subjectId: 'sub-calculo',
+      active: true,
+    };
+    // 4 últimas terças às 20h SP (23:00Z), sem durationSeconds em nenhuma sessão
+    const sessions: SessionRecord[] = [
+      { startedAt: new Date('2026-02-10T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-02-17T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-02-24T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-03-03T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+    ];
+    const subjects = [{ id: 'sub-calculo', name: 'Cálculo' }];
+
+    const result = computeRoutineMismatch([block], sessions, subjects, TZ_SP, now);
+
+    expect(result).not.toBeNull();
+    expect(result?.type).toBe('routine_mismatch');
+    expect(result?.title).toBe('Rotina fora do compasso');
+    expect(result?.description).toContain('Cálculo');
+    expect(result?.description).toContain('20h-22h');
+    expect(result?.dataPoints).toBe(4);
+  });
+
+  it('counts session without durationSeconds inside block window as on-schedule (returns null when majority on-schedule)', () => {
+    const block: RoutineBlockRecord = {
+      dayOfWeek: 2, // terça
+      startTime: '14:00',
+      endTime: '16:00',
+      subjectId: 'sub-calculo',
+      active: true,
+    };
+    // 3 terças no horário (14:30 em SP = 17:30Z) e 1 terça fora (20:00 em SP = 23:00Z), todas sem durationSeconds
+    const sessions: SessionRecord[] = [
+      { startedAt: new Date('2026-02-10T17:30:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-02-17T17:30:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-02-24T17:30:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+      { startedAt: new Date('2026-03-03T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo' },
+    ];
+    const subjects = [{ id: 'sub-calculo', name: 'Cálculo' }];
+
+    const result = computeRoutineMismatch([block], sessions, subjects, TZ_SP, now);
+
+    expect(result).toBeNull();
+  });
+
+  it('uses "aos domingos" rather than "às domingos" for Sunday routine block', () => {
+    const block: RoutineBlockRecord = {
+      dayOfWeek: 0, // domingo
+      startTime: '14:00',
+      endTime: '16:00',
+      subjectId: 'sub-calculo',
+      active: true,
+    };
+    // 4 últimos domingos: 2026-02-08, 2026-02-15, 2026-02-22, 2026-03-01
+    // 23:00Z = 20h em São Paulo (UTC-3), bloco 20h-22h
+    const sessions: SessionRecord[] = [
+      { startedAt: new Date('2026-02-08T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo', durationSeconds: 3000 },
+      { startedAt: new Date('2026-02-15T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo', durationSeconds: 3000 },
+      { startedAt: new Date('2026-02-22T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo', durationSeconds: 3000 },
+      { startedAt: new Date('2026-03-01T23:00:00.000Z'), completed: true, subjectId: 'sub-calculo', durationSeconds: 3000 },
+    ];
+    const subjects = [{ id: 'sub-calculo', name: 'Cálculo' }];
+
+    const result = computeRoutineMismatch([block], sessions, subjects, TZ_SP, now);
+
+    expect(result).not.toBeNull();
+    expect(result?.type).toBe('routine_mismatch');
+    expect(result?.description).toContain('aos domingos');
+    expect(result?.description).not.toContain('às domingos');
+  });
 });
 
