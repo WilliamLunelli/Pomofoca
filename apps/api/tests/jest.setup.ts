@@ -10,11 +10,9 @@ process.env.GOOGLE_CLIENT_SECRET ??= 'test-google-client-secret';
 process.env.MERCADO_PAGO_ACCESS_TOKEN ??= 'test-mp-token';
 process.env.MERCADO_PAGO_WEBHOOK_SECRET ??= 'test-mp-webhook-secret';
 
-// Par gerado em runtime, só para teste; nenhuma chave fica no repositório.
-if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-  const vapidKeys = webpush.generateVAPIDKeys();
-  process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
-  process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
-}
+// par gerado a cada execução, só para teste; sempre sobrescreve, para os testes nunca usarem chaves reais
+const vapidKeys = webpush.generateVAPIDKeys();
+process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
+process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
 process.env.VAPID_SUBJECT ??= 'mailto:test@example.com';
 
