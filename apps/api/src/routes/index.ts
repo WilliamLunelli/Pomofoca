@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { authRoutes } from '../modules/auth/auth.routes';
+import { healthRoutes } from '../modules/health/health.routes';
 import { insightsRoutes } from '../modules/insights/insights.routes';
 import { notificationsRoutes } from '../modules/notifications/notifications.routes';
 import { reportsRoutes } from '../modules/reports/reports.routes';
@@ -13,6 +14,7 @@ import { usersRoutes } from '../modules/users/users.routes';
 
 const router = Router();
 
+router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 // Antes de "/subjects" - mais especifica, evita qualquer ambiguidade de path.
