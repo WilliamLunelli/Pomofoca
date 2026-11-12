@@ -10,7 +10,9 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CountUp } from '@/components/CountUp';
 import { Foki, type FokiState } from '@/components/Foki';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { usePomodoroSettings, type BackgroundSound } from '@/hooks/usePomodoroSettings';
@@ -73,6 +75,15 @@ function formatMinutes(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+// Total do dia no cabecalho: "50min" / "1h 20min".
+function formatTodayTotal(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}min`;
+  return `${h}h ${m}min`;
+}
+
 function durationFor(
   mode: Mode,
   settings: ReturnType<typeof usePomodoroSettings>['settings'],
@@ -91,13 +102,24 @@ export function TimerPage() {
   const [mode, setMode] = useState<Mode>('FOCUS');
   const [cycle, setCycle] = useState(1);
   const [remaining, setRemaining] = useState(() => settings.focusMinutes * 60);
+  const reducedMotion = useReducedMotion();
   const [running, setRunning] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
   const [todayBreakdown, setTodayBreakdown] = useState<ReportBreakdown | null>(null);
   const [streak, setStreak] = useState<ReportStreak | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  // Foki triste por ~1.2s ao pular um ciclo FOCUS antes do fim
+  const [skipSad, setSkipSad] = useState(false);
+  const skipSadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebratingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+      if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
+    },
+    [],
+  );
 
   const startedAtRef = useRef<Date | null>(null);
   const totalRef = useRef(durationFor('FOCUS', settings));
@@ -241,7 +263,6 @@ export function TimerPage() {
           finishedAt: new Date().toISOString(),
         });
         if (finishedMode === 'FOCUS') {
-          setTodayFocusSeconds((s) => s + elapsedSeconds);
           loadStreak();
           loadTodayBreakdown();
         }
@@ -277,7 +298,8 @@ export function TimerPage() {
           logSession(mode, totalRef.current, true);
           if (mode === 'FOCUS') {
             setCelebrating(true);
-            setTimeout(() => setCelebrating(false), 1600);
+            if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
+            celebratingTimerRef.current = setTimeout(() => setCelebrating(false), 1600);
           }
           const { nextMode, nextCycle } = advance();
           const shouldAutoStart = settings.autoStartNext;
@@ -324,8 +346,22 @@ export function TimerPage() {
     );
   }
 
+  function clearFokiTimers() {
+    if (celebratingTimerRef.current) clearTimeout(celebratingTimerRef.current);
+    celebratingTimerRef.current = null;
+    if (skipSadTimerRef.current) clearTimeout(skipSadTimerRef.current);
+    skipSadTimerRef.current = null;
+    setCelebrating(false);
+    setSkipSad(false);
+  }
+
   function skip() {
     const elapsed = totalRef.current - remaining;
+    clearFokiTimers();
+    if (mode === 'FOCUS' && remaining > 0) {
+      setSkipSad(true);
+      skipSadTimerRef.current = setTimeout(() => setSkipSad(false), 1200);
+    }
     if (elapsed > 0) logSession(mode, elapsed, false);
     setRunning(false);
     const { nextMode, nextCycle } = advance();
@@ -341,6 +377,7 @@ export function TimerPage() {
   }
 
   function reset() {
+    clearFokiTimers();
     setRunning(false);
     startedAtRef.current = null;
     setRemaining(totalRef.current);
@@ -357,12 +394,27 @@ export function TimerPage() {
   const elapsed = totalRef.current - remaining;
   const offset = CIRCUMFERENCE * (totalRef.current > 0 ? elapsed / totalRef.current : 0);
   const ringColor = mode === 'FOCUS' ? 'var(--color-accent)' : 'var(--f-break)';
+  // Anel suave (1000ms linear) so enquanto roda e avanca; em saltos (reset, troca de
+  // modo/ciclo, offset diminuindo) a transicao some pra nao girar ao contrario.
+  const prevOffsetRef = useRef(offset);
+  const ringJump = offset < prevOffsetRef.current;
+  useEffect(() => {
+    prevOffsetRef.current = offset;
+  }, [offset]);
+  const ringTransition =
+    reducedMotion || !running || ringJump
+      ? 'stroke var(--motion-slow) ease'
+      : 'stroke-dashoffset 1000ms linear, stroke var(--motion-slow) ease';
 
   const timerFokiState: FokiState = celebrating
     ? 'celebrating'
-    : running && mode === 'FOCUS'
-      ? 'focused'
-      : 'idle';
+    : skipSad
+      ? 'sad'
+      : running && mode === 'FOCUS'
+        ? 'focused'
+        : !running && elapsed > 0
+          ? 'curious'
+          : 'idle';
   const streakFokiState: FokiState =
     streak && streak.currentStreak > 0 ? 'idle' : 'sleeping';
   const isZen = timerLayout === 'zen';
@@ -386,8 +438,11 @@ export function TimerPage() {
           }}
           className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] transition-colors"
           style={{
-            borderColor: s.id === selectedSubjectId ? s.color : 'var(--color-divider)',
-            background: s.id === selectedSubjectId ? `${s.color}22` : 'transparent',
+            borderColor:
+              s.id === selectedSubjectId ? 'var(--color-accent)' : 'var(--color-divider)',
+            background:
+              s.id === selectedSubjectId ? 'var(--color-accent-tint)' : 'transparent',
+            color: s.id === selectedSubjectId ? 'var(--color-accent)' : undefined,
           }}
         >
           <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
@@ -396,7 +451,7 @@ export function TimerPage() {
       ))}
       {subjects.length === 0 && (
         <p className="text-xs text-muted">
-          Nenhuma matéria ainda — crie uma na aba Matérias para organizar seu estudo.
+          Nenhuma matéria ainda. Crie uma na aba Matérias para organizar seu estudo.
         </p>
       )}
     </div>
@@ -406,7 +461,9 @@ export function TimerPage() {
     <div className="relative min-h-full">
       <audio ref={audioRef} />
       <div
-        className="pointer-events-none absolute inset-0 transition-colors duration-500"
+        className={`pointer-events-none absolute inset-0 transition-colors duration-500${
+          running && mode === 'FOCUS' ? ' glow-pulse' : ''
+        }`}
         style={{
           background:
             mode === 'FOCUS'
@@ -420,13 +477,13 @@ export function TimerPage() {
             <h6>{MODE_LABEL[mode]}</h6>
             <div className="text-sm text-muted">
               Ciclo {cycle} de {settings.cyclesBeforeLongBreak} · hoje{' '}
-              {formatClock(todayFocusSeconds).slice(0, 5)}
+              {formatTodayTotal(todayBreakdown?.totalMinutes ?? 0)}
             </div>
           </div>
           <div className="flex gap-1">
             <button
               onClick={() => setTimerLayout('zen')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={{
                 borderColor: isZen ? 'var(--color-accent)' : 'var(--color-divider)',
                 background: isZen ? 'var(--color-accent-tint)' : 'transparent',
@@ -437,7 +494,7 @@ export function TimerPage() {
             </button>
             <button
               onClick={() => setTimerLayout('panel')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={{
                 borderColor: !isZen ? 'var(--color-accent)' : 'var(--color-divider)',
                 background: !isZen ? 'var(--color-accent-tint)' : 'transparent',
@@ -461,7 +518,10 @@ export function TimerPage() {
               compartilhado, o Zen (sem sidebar disputando espaco) deixava o anel
               crescer mais que no Painel na MESMA largura de janela. */}
           <div className="flex w-full max-w-[640px] flex-col items-center gap-6">
-            <Foki state={timerFokiState} size={56} />
+            {/* sobrepoe a borda superior do anel (margem negativa), sem tocar o relogio */}
+            <div className="pointer-events-none relative z-10 -mb-[44px]">
+              <Foki state={timerFokiState} size={80} />
+            </div>
             <div
               className="relative aspect-square w-full"
               style={{ maxWidth: 'clamp(340px, 30vw, 560px)' }}
@@ -485,14 +545,13 @@ export function TimerPage() {
                   strokeLinecap="round"
                   strokeDasharray={CIRCUMFERENCE}
                   strokeDashoffset={offset}
-                  style={{
-                    transition: 'stroke-dashoffset 400ms linear, stroke 400ms ease',
-                  }}
+                  style={{ transition: ringTransition }}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
                 <div
-                  className="font-heading leading-none tracking-tight tabular-nums"
+                  key={running ? 'running' : 'paused'}
+                  className="clock-pop font-heading leading-none tracking-tight tabular-nums"
                   style={{ fontSize: 'clamp(56px, 5vw, 92px)' }}
                 >
                   {formatClock(remaining)}
@@ -548,7 +607,7 @@ export function TimerPage() {
           </div>
 
           {!isZen && (
-            <div className="flex flex-col gap-6">
+            <div className="stagger flex flex-col gap-6">
               <div>
                 <h6 className="mb-4">Matéria</h6>
                 {subjectPicker}
@@ -564,7 +623,7 @@ export function TimerPage() {
                         <div key={task.id} className="flex items-center gap-2">
                           <button
                             onClick={() => setSelectedTaskId(isActive ? null : task.id)}
-                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors"
+                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors duration-[var(--motion-base)]"
                             style={
                               isActive
                                 ? {
@@ -626,7 +685,7 @@ export function TimerPage() {
                           {goalProgress !== null && (
                             <div className="h-1 overflow-hidden rounded-full bg-track">
                               <div
-                                className="h-full rounded-full"
+                                className="bar-grow h-full rounded-full"
                                 style={{ width: `${goalProgress}%`, background: s.color }}
                               />
                             </div>
@@ -668,10 +727,14 @@ export function TimerPage() {
               {streak && (
                 <div className="card flex items-center gap-3 p-4">
                   <Foki state={streakFokiState} size={40} />
-                  <Flame weight="fill" size={20} className="text-cta" />
+                  <Flame
+                    weight="fill"
+                    size={20}
+                    className={`text-cta${streak.currentStreak > 0 ? ' flame-flicker' : ''}`}
+                  />
                   <div className="text-[13px]">
                     <b className="font-heading font-medium">
-                      {streak.currentStreak} dias
+                      <CountUp value={streak.currentStreak} /> dias
                     </b>{' '}
                     de sequência
                     <div className="text-[11px] text-muted">

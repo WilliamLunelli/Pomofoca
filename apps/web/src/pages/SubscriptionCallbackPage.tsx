@@ -122,7 +122,7 @@ export function SubscriptionCallbackPage() {
             <p className="mb-8 text-sm text-muted">
               Se você pagou por PIX ou boleto, a confirmação pode levar alguns minutos.
               Assim que o Mercado Pago confirmar, seu plano muda pra Premium
-              automaticamente — não precisa fazer nada.
+              automaticamente. Não precisa fazer nada.
             </p>
             <Link to="/timer" className="btn btn-primary min-w-[180px] text-[15px]">
               Voltar para o app

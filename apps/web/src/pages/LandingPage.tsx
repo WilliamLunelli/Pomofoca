@@ -16,7 +16,7 @@ import { DemoSubjects } from '@/components/landing/DemoSubjects';
 import { DemoTimer } from '@/components/landing/DemoTimer';
 import { DemoWeek } from '@/components/landing/DemoWeek';
 import { LandingHeader } from '@/components/landing/LandingHeader';
-import { useReducedMotion } from '@/components/landing/useReducedMotion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
 import { useAuth } from '@/context/AuthContext';
 import { YEARLY_MONTHLY_EQUIVALENT, YEARLY_PRICE, formatBRL } from '@/lib/plans';
@@ -129,7 +129,10 @@ export function LandingPage() {
               className="hero-enter hero-cta flex flex-wrap items-center gap-3"
               style={{ '--hero-delay': '160ms' } as CSSProperties}
             >
-              <Link to={primaryCtaTo} className="btn btn-primary min-w-[180px] text-[15px]">
+              <Link
+                to={primaryCtaTo}
+                className="btn btn-primary min-w-[180px] text-[15px]"
+              >
                 {primaryCtaLabel}
               </Link>
               {!user && (
@@ -210,7 +213,9 @@ export function LandingPage() {
                     <Flame size={18} weight="fill" className="text-accent" />
                     Sequência
                   </div>
-                  <div className="font-heading text-5xl leading-none tabular-nums">23</div>
+                  <div className="font-heading text-5xl leading-none tabular-nums">
+                    23
+                  </div>
                   <div className="landing-muted mt-1 text-sm">dias seguidos</div>
                 </div>
                 <Foki state={fokiCelebrate} size={72} />
@@ -232,26 +237,26 @@ export function LandingPage() {
               className="absolute bottom-6 left-6 top-6 w-px md:bottom-auto md:left-[16.67%] md:right-[16.67%] md:top-6 md:h-px md:w-auto"
               style={{ background: 'var(--landing-rail)' }}
             />
-          <ol className="relative m-0 grid list-none gap-10 p-0 md:grid-cols-3 md:gap-8">
-            {STEPS.map((s, i) => (
-              <li key={s.title} className="relative">
-                <Reveal delay={i * 80}>
-                  <div className="flex gap-4 md:flex-col md:items-center md:text-center">
-                    <div
-                      className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-divider bg-surface"
-                      style={{ boxShadow: 'var(--shadow-sm)' }}
-                    >
-                      <s.icon size={22} className="text-accent" />
+            <ol className="relative m-0 grid list-none gap-10 p-0 md:grid-cols-3 md:gap-8">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className="relative">
+                  <Reveal delay={i * 80}>
+                    <div className="flex gap-4 md:flex-col md:items-center md:text-center">
+                      <div
+                        className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-divider bg-surface"
+                        style={{ boxShadow: 'var(--shadow-sm)' }}
+                      >
+                        <s.icon size={22} className="text-accent" />
+                      </div>
+                      <div className="md:max-w-[240px]">
+                        <h3 className="mb-1 text-base font-heading">{s.title}</h3>
+                        <p className="landing-muted text-[13px]">{s.body}</p>
+                      </div>
                     </div>
-                    <div className="md:max-w-[240px]">
-                      <h3 className="mb-1 text-base font-heading">{s.title}</h3>
-                      <p className="landing-muted text-[13px]">{s.body}</p>
-                    </div>
-                  </div>
-                </Reveal>
-              </li>
-            ))}
-          </ol>
+                  </Reveal>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </section>

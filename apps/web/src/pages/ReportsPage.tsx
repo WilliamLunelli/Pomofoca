@@ -1,5 +1,13 @@
-import { Books, CalendarBlank, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Books,
+  CalendarBlank,
+  CalendarX,
+  Clock,
+  Flame,
+  Lock,
+  Warning,
+} from '@phosphor-icons/react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bar,
@@ -12,7 +20,10 @@ import {
   XAxis,
 } from 'recharts';
 
+import { CountUp } from '@/components/CountUp';
+import { DemoHeatmap } from '@/components/landing/DemoHeatmap';
 import { Foki } from '@/components/Foki';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import { api, ApiError } from '@/lib/api';
@@ -46,11 +57,39 @@ const PERIODS: { value: Period; label: string }[] = [
 
 const HEATMAP_LEVEL_COLOR = [
   'var(--f-track)',
-  'var(--color-accent-200)',
-  'var(--color-accent-400)',
-  'var(--color-accent-600)',
-  'var(--color-accent-800)',
+  'color-mix(in srgb, var(--color-accent) 25%, transparent)',
+  'color-mix(in srgb, var(--color-accent) 45%, transparent)',
+  'color-mix(in srgb, var(--color-accent) 70%, transparent)',
+  'var(--color-accent)',
 ];
+
+// Barra de hoje (ponto cuja data e hoje no fuso local) em accent cheio; as demais mais suaves.
+const BAR_TODAY = 'var(--color-accent)';
+const BAR_SOFT = 'color-mix(in srgb, var(--color-accent) 55%, transparent)';
+
+// Selo sobre uma previa desfocada e ficticia de um recurso Premium bloqueado.
+function LockedPreview({ children, text }: { children: ReactNode; text: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-md">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none"
+        style={{ filter: 'blur(5px)', opacity: 0.45 }}
+      >
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="card flex max-w-full flex-wrap items-center justify-center gap-3 px-4 py-3 text-center">
+          <Lock size={16} className="flex-none text-accent" />
+          <span className="text-[13px]">{text}</span>
+          <Link to="/subscription" className="btn btn-primary">
+            Desbloquear com Premium
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatMinutes(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -70,6 +109,7 @@ function toggleStyle(active: boolean) {
 export function ReportsPage() {
   const { user } = useAuth();
   const { reportsLayout, setReportsLayout } = usePreferences();
+  const reducedMotion = useReducedMotion();
   const [period, setPeriod] = useState<Period>('week');
 
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -143,14 +183,16 @@ export function ReportsPage() {
     [breakdown],
   );
 
-  const trendData = useMemo(
-    () =>
-      (trend?.points ?? []).map((p) => ({
-        label: p.from.slice(5),
-        minutes: p.minutes,
-      })),
-    [trend],
-  );
+  const trendData = useMemo(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const todayLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return (trend?.points ?? []).map((p) => ({
+      label: p.from.slice(5),
+      minutes: p.minutes,
+      isToday: p.from.slice(0, 10) === todayLocal,
+    }));
+  }, [trend]);
 
   const heatmapWeeks = useMemo(() => {
     if (!heatmap) return [];
@@ -181,13 +223,9 @@ export function ReportsPage() {
         )}
       </div>
       {heatmapLocked ? (
-        <p className="text-sm text-muted">
-          O heatmap anual é exclusivo do plano Premium.{' '}
-          <Link to="/subscription" className="text-accent">
-            Assine para desbloquear
-          </Link>
-          .
-        </p>
+        <LockedPreview text="Heatmap anual é exclusivo do Premium">
+          <DemoHeatmap weeks={26} />
+        </LockedPreview>
       ) : heatmap ? (
         <div className="overflow-x-auto pb-1">
           <div className="flex min-w-max gap-[3px]">
@@ -214,10 +252,14 @@ export function ReportsPage() {
   const streakCard = streak && (
     <div className="card flex items-center gap-4 p-6">
       <Foki state={streak.currentStreak > 0 ? 'idle' : 'sleeping'} size={44} />
-      <Flame weight="fill" size={28} className="text-cta" />
+      <Flame
+        weight="fill"
+        size={28}
+        className={`text-cta${streak.currentStreak > 0 ? ' flame-flicker' : ''}`}
+      />
       <div>
         <div className="font-heading text-xl tabular-nums">
-          {streak.currentStreak} dias
+          <CountUp value={streak.currentStreak} /> dias
         </div>
         <div className="text-xs text-muted">
           sequência atual · recorde {streak.recordStreak}
@@ -241,19 +283,25 @@ export function ReportsPage() {
         )}
       </div>
       {insightsLocked ? (
-        <p className="text-sm text-muted">
-          Insights adaptativos são exclusivos do plano Premium.{' '}
-          <Link to="/subscription" className="text-accent">
-            Assine para desbloquear
-          </Link>
-          .
-        </p>
+        <LockedPreview text="Insights adaptativos são exclusivos do Premium">
+          <div className="flex min-h-[160px] flex-col justify-center gap-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex gap-3">
+                <div className="mt-0.5 h-[18px] w-[18px] flex-none rounded-full bg-track" />
+                <div className="flex-1">
+                  <div className="mb-2 h-3 w-1/3 rounded-full bg-track" />
+                  <div className="h-3 w-4/5 rounded-full bg-track" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </LockedPreview>
       ) : !insights ? (
         <p className="text-sm text-muted">Carregando…</p>
       ) : !insights.hasEnoughData ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted">
-            Continue estudando — seus insights aparecem depois que houver dado suficiente
+            Continue estudando: seus insights aparecem depois que houver dado suficiente
             pra serem confiáveis.
           </p>
           <p className="text-xs text-muted">
@@ -267,8 +315,8 @@ export function ReportsPage() {
         </div>
       ) : insights.insights.length === 0 ? (
         <p className="text-sm text-muted">
-          Nada de específico pra destacar ainda — seu padrão de estudo está equilibrado,
-          ou ainda não há dado suficiente pra um insight específico.
+          Nada de específico pra destacar ainda. Seu padrão de estudo está equilibrado, ou
+          ainda não há dado suficiente pra um insight específico.
         </p>
       ) : (
         <div className="flex flex-col gap-4">
@@ -311,7 +359,7 @@ export function ReportsPage() {
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
-                className="rounded-sm border px-2.5 py-1.5 text-xs transition-colors"
+                className="seg-btn rounded-sm border px-2.5 py-1.5 text-xs"
                 style={toggleStyle(period === p.value)}
               >
                 {p.label}
@@ -321,14 +369,14 @@ export function ReportsPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setReportsLayout('narrative')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={toggleStyle(reportsLayout === 'narrative')}
             >
               Narrativa
             </button>
             <button
               onClick={() => setReportsLayout('dense')}
-              className="rounded-sm border px-2.5 py-1.5 text-[11px] transition-colors"
+              className="seg-btn rounded-sm border px-2.5 py-1.5 text-[11px]"
               style={toggleStyle(reportsLayout === 'dense')}
             >
               Denso
@@ -354,34 +402,34 @@ export function ReportsPage() {
 
       {!blocked && summary && reportsLayout === 'narrative' && (
         <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="card p-6">
               <h6 className="mb-3">Minutos estudados</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {formatMinutes(summary.studyMinutes)}
+                <CountUp value={summary.studyMinutes} format={formatMinutes} />
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Sessões completas</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {summary.sessionsCompleted}
+                <CountUp value={summary.sessionsCompleted} />
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Taxa de conclusão</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {Math.round(summary.completionRate * 100)}%
+                <CountUp value={Math.round(summary.completionRate * 100)} />%
               </div>
             </div>
             <div className="card p-6">
               <h6 className="mb-3">Dias ativos</h6>
               <div className="font-heading text-2xl tabular-nums">
-                {summary.activeDays}
+                <CountUp value={summary.activeDays} />
               </div>
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="stagger grid gap-6 lg:grid-cols-2">
             <div className="card p-8">
               <h6 className="mb-6">Distribuição por matéria</h6>
               {donutData.length > 0 ? (
@@ -395,6 +443,9 @@ export function ReportsPage() {
                         outerRadius={68}
                         paddingAngle={2}
                         stroke="none"
+                        isAnimationActive={!reducedMotion}
+                        animationDuration={700}
+                        animationEasing="ease-out"
                       >
                         {donutData.map((entry) => (
                           <Cell key={entry.name} fill={entry.color} />
@@ -444,9 +495,16 @@ export function ReportsPage() {
                   <Tooltip formatter={(v: number) => formatMinutes(v)} />
                   <Bar
                     dataKey="minutes"
-                    fill="var(--color-accent)"
+                    fill={BAR_SOFT}
                     radius={[3, 3, 0, 0]}
-                  />
+                    // sem animacao propria: a de entrada do Recharts congela posicoes
+                    // medidas durante a entrada da pagina e desalinha barras e rotulos
+                    isAnimationActive={false}
+                  >
+                    {trendData.map((p) => (
+                      <Cell key={p.label} fill={p.isToday ? BAR_TODAY : BAR_SOFT} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -460,7 +518,7 @@ export function ReportsPage() {
 
       {!blocked && summary && reportsLayout === 'dense' && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="flex flex-col gap-6">
+          <div className="stagger flex flex-col gap-6">
             {heatmapCard}
 
             <div className="card p-8">
@@ -476,9 +534,14 @@ export function ReportsPage() {
                   <Tooltip formatter={(v: number) => formatMinutes(v)} />
                   <Bar
                     dataKey="minutes"
-                    fill="var(--color-accent)"
+                    fill={BAR_SOFT}
                     radius={[3, 3, 0, 0]}
-                  />
+                    isAnimationActive={false}
+                  >
+                    {trendData.map((p) => (
+                      <Cell key={p.label} fill={p.isToday ? BAR_TODAY : BAR_SOFT} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -524,31 +587,31 @@ export function ReportsPage() {
             {insightsCard}
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="stagger flex flex-col gap-4">
             {streakCard}
 
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Minutos</h6>
               <div className="font-heading text-xl tabular-nums">
-                {formatMinutes(summary.studyMinutes)}
+                <CountUp value={summary.studyMinutes} format={formatMinutes} />
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Sessões</h6>
               <div className="font-heading text-xl tabular-nums">
-                {summary.sessionsCompleted}
+                <CountUp value={summary.sessionsCompleted} />
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Conclusão</h6>
               <div className="font-heading text-xl tabular-nums">
-                {Math.round(summary.completionRate * 100)}%
+                <CountUp value={Math.round(summary.completionRate * 100)} />%
               </div>
             </div>
             <div className="card flex items-center justify-between gap-4 p-4">
               <h6 className="m-0">Dias ativos</h6>
               <div className="font-heading text-xl tabular-nums">
-                {summary.activeDays}
+                <CountUp value={summary.activeDays} />
               </div>
             </div>
 
@@ -559,6 +622,7 @@ export function ReportsPage() {
                   {breakdown?.subjects.map((s) => (
                     <div
                       key={s.subjectId ?? 'none'}
+                      className="bar-grow"
                       style={{
                         width: `${s.percentage}%`,
                         background: s.color ?? 'var(--f-muted)',

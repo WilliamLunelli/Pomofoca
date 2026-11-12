@@ -59,7 +59,7 @@ export function RegisterPage() {
 
         <h1 className="mb-2 text-2xl">Crie sua conta</h1>
         <p className="mb-8 text-sm text-muted">
-          Grátis pra sempre — leva menos de um minuto.
+          Grátis pra sempre. Leva menos de um minuto.
         </p>
 
         <GoogleSignInButton onCredential={handleGoogleCredential} onError={setError} />

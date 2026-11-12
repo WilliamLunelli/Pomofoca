@@ -33,12 +33,26 @@
   --color-accent-tint: color-mix(in srgb, var(--color-accent) 10%, transparent);
 
   --f-track: #e8e6ed;
+  /* Switch: thumb claro nos dois temas; trilho desligado >=3:1 contra o thumb. */
+  --switch-thumb: #ffffff;
+  --switch-track: var(--color-neutral-500);
   --f-tint: rgba(31, 27, 36, 0.04);
   --f-break: #4ecdc4;
   --f-cta: #ff6b5b;
   --f-ok: #3fbf6e;
   --f-warn: #f2a93b;
   --f-muted: #6b6572;
+
+  /* Mascote Foki: tons proprios (dorso/corpo/barriga, contorno, olho, brilho) com
+     valor em cada tema, pra nao virar mancha branca no escuro. */
+  --foki-back: #b6bcd6;
+  --foki-mid: #d9ddf0;
+  --foki-light: #f6f7fd;
+  --foki-outline: #8a90ad;
+  --foki-eye: #2b2d36;
+  --foki-shine: #ffffff;
+  --foki-shadow: rgba(31, 27, 36, 0.18);
+  --foki-sparkle: #e0930a;
 
   --font-heading: 'Inter', system-ui, sans-serif;
   --font-heading-weight: 500;
@@ -72,6 +86,13 @@
   --shadow-sm: 0 0 0 1px #e8e6ed;
   --shadow-md: 0 0 0 1px #e8e6ed, 0 6px 18px rgba(31, 27, 36, 0.1);
   --shadow-lg: 0 0 0 1px #e8e6ed, 0 16px 40px rgba(31, 27, 36, 0.14);
+
+  /* movimento (independe de tema) */
+  --motion-fast: 150ms;
+  --motion-base: 240ms;
+  --motion-slow: 420ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 :root[data-theme='dark'] {
@@ -82,6 +103,18 @@
   --color-accent-2: #a7a1db;
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
 
+  --foki-back: #565b82;
+  --foki-mid: #7b82ab;
+  --foki-light: #aeb4d4;
+  --foki-outline: #3a3e5e;
+  --foki-eye: #151726;
+  --foki-shine: #e9ebf8;
+  --foki-shadow: rgba(0, 0, 0, 0.45);
+  --foki-sparkle: #ffe9a8;
+
+  /* Trilho neutro sutil (o valor claro do :root vira mancha branca no escuro). */
+  --f-track: color-mix(in srgb, var(--color-text) 12%, transparent);
+  --switch-track: var(--f-track);
   --landing-track: color-mix(in srgb, var(--color-text) 10%, transparent);
   --landing-muted: color-mix(in srgb, var(--color-text) 74%, transparent);
   --landing-glow: color-mix(in srgb, var(--color-accent) 18%, transparent);

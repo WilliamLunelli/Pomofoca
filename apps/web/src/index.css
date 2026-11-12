@@ -54,11 +54,11 @@
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
     transition:
-      background 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease,
-      opacity 150ms ease,
-      transform 120ms ease-out;
+      background var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      opacity var(--motion-fast) ease,
+      transform var(--motion-fast) var(--ease-out);
   }
   .btn:active:not(:disabled) {
     transform: scale(0.97);
@@ -138,10 +138,207 @@
     color: var(--color-accent);
   }
 
+  .nav-cta {
+    background: var(--color-accent-tint);
+    color: var(--color-accent);
+  }
+  .nav-cta:hover {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  }
+
   .card {
     background: var(--color-surface);
     border: 1px solid var(--color-divider);
     border-radius: var(--radius-md);
+  }
+  /* card clicavel: elevacao leve no hover (nao usar em cards estaticos) */
+  .card-interactive {
+    cursor: pointer;
+    transition:
+      transform var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+  }
+  .card-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .card-interactive:active {
+    transform: translateY(0);
+  }
+}
+
+/* ---- Sistema de movimento das telas logadas ---- */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-y, 10px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* troca de rota: wrapper com key={pathname} no AppShell */
+.page-enter {
+  --enter-y: 8px;
+  /* backwards (nao both): sem transform residual, que viraria containing block de modais fixed */
+  animation: enter-up var(--motion-base) var(--ease-out) backwards;
+}
+/* entrada escalonada dos filhos diretos (so na montagem; max ~8 itens) */
+.stagger > * {
+  animation: enter-up var(--motion-slow) var(--ease-out) backwards;
+  animation-delay: 280ms;
+}
+.stagger > :nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.stagger > :nth-child(5) {
+  animation-delay: 160ms;
+}
+.stagger > :nth-child(6) {
+  animation-delay: 200ms;
+}
+.stagger > :nth-child(7) {
+  animation-delay: 240ms;
+}
+
+/* barra de progresso: cresce de 0 ao valor (scaleX, origem a esquerda) */
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.bar-grow {
+  transform-origin: left center;
+  animation: bar-grow var(--motion-slow) var(--ease-out) both;
+}
+
+/* glow do timer: pulsa devagar so enquanto um ciclo FOCUS roda */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+.glow-pulse {
+  transform-origin: 50% 0%;
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+/* relogio: feedback ao iniciar/pausar (reinicia via key) */
+@keyframes clock-pop {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.clock-pop {
+  animation: clock-pop var(--motion-base) var(--ease-out);
+}
+
+/* chama do streak: tremulacao sutil, base fixa */
+@keyframes flame-flicker {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.06, 0.97) rotate(-2deg);
+  }
+  50% {
+    transform: scale(0.97, 1.05) rotate(1.5deg);
+  }
+  75% {
+    transform: scale(1.04, 0.98) rotate(-1deg);
+  }
+}
+.flame-flicker {
+  transform-origin: 50% 100%;
+  animation: flame-flicker 1.8s ease-in-out infinite;
+}
+
+/* checkbox de tarefa: pop ao concluir, texto riscado com transicao */
+@keyframes check-pop {
+  0% {
+    transform: scale(0.7);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.task-check {
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+.task-check[data-pop='true'] {
+  animation: check-pop var(--motion-base) var(--ease-spring);
+}
+.task-title {
+  text-decoration: line-through;
+  text-decoration-color: transparent;
+  transition:
+    color var(--motion-base) ease,
+    opacity var(--motion-base) ease,
+    text-decoration-color var(--motion-base) ease;
+}
+.task-title[data-done='true'] {
+  opacity: 0.5;
+  text-decoration-color: currentColor;
+}
+
+/* switch / seletores segmentados: indicador transiciona em vez de trocar seco */
+.switch-thumb {
+  transition: transform var(--motion-base) var(--ease-out);
+}
+.seg-btn {
+  transition:
+    background var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    color var(--motion-base) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .stagger > *,
+  .bar-grow,
+  .glow-pulse,
+  .clock-pop,
+  .flame-flicker,
+  .task-check[data-pop='true'] {
+    animation: none;
+  }
+  .card-interactive:hover,
+  .card-interactive:active,
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+  .switch-thumb {
+    transition: none;
+  }
+  .seg-btn,
+  .task-check,
+  .task-title {
+    transition-duration: 0ms;
   }
 }
 
@@ -208,11 +405,7 @@ a:focus-visible {
 
 /* Landing: halo suave da cor de destaque atras da composicao do hero. */
 .hero-glow {
-  background: radial-gradient(
-    closest-side,
-    var(--landing-glow),
-    transparent
-  );
+  background: radial-gradient(closest-side, var(--landing-glow), transparent);
   filter: blur(24px);
 }
 
@@ -254,57 +447,322 @@ a:focus-visible {
   }
 }
 
-@keyframes foki-breathe {
+/* ---- Foki: partes independentes. transform-origin em unidades do viewBox (px). ---- */
+.foki-char,
+.foki-body,
+.foki-shadow {
+  transform-origin: 50px 92px;
+}
+.foki-head-tilt {
+  transform-origin: 50px 68px;
+  transition: transform 300ms ease;
+}
+.foki-head {
+  transform-origin: 50px 68px;
+}
+.foki-flipper--l {
+  transform-origin: 28px 66px;
+  transition: transform 300ms ease;
+}
+.foki-flipper--r {
+  transform-origin: 72px 66px;
+  transition: transform 300ms ease;
+}
+.foki-blinkable {
+  transform-origin: 50px 49px;
+  transition: transform 70ms ease-out;
+}
+.foki-blink {
+  transform: scaleY(0.1);
+}
+.foki-look {
+  transform-origin: 50px 49px;
+}
+
+/* troca de expressao: fade + scale curto, tudo montado e alternando opacity */
+.foki-expr {
+  opacity: 0;
+  transform: scale(0.92);
+  transform-origin: 50px 52px;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+.foki-expr[data-on='true'] {
+  opacity: 1;
+  transform: none;
+}
+.foki-expr--static {
+  transform: none;
+}
+
+/* poses base por estado (valem tambem com reduced motion) */
+.foki--sad .foki-head-tilt {
+  transform: translateY(4px) rotate(2deg);
+}
+.foki--sad .foki-flipper--l {
+  transform: rotate(-10deg);
+}
+.foki--sad .foki-flipper--r {
+  transform: rotate(10deg);
+}
+.foki--curious .foki-head-tilt {
+  transform: rotate(-8deg);
+}
+.foki--celebrating .foki-flipper--l {
+  transform: rotate(35deg);
+}
+.foki--celebrating .foki-flipper--r {
+  transform: rotate(-35deg);
+}
+.foki--sleeping .foki-head-tilt {
+  transform: translateY(3px) rotate(4deg);
+}
+
+/* respiracao: corpo faz squash/stretch, cabeca acompanha com atraso */
+.foki--idle .foki-body,
+.foki--focused .foki-body,
+.foki--curious .foki-body,
+.foki--sad .foki-body {
+  animation: foki-breathe-body 3200ms ease-in-out infinite;
+}
+.foki--idle .foki-head,
+.foki--focused .foki-head,
+.foki--curious .foki-head,
+.foki--sad .foki-head {
+  animation: foki-breathe-head 3200ms ease-in-out 160ms infinite;
+}
+.foki--sleeping .foki-body {
+  animation: foki-breathe-body 5200ms ease-in-out infinite;
+}
+.foki--sleeping .foki-head {
+  animation: foki-breathe-head 5200ms ease-in-out 200ms infinite;
+}
+.foki--idle .foki-shadow,
+.foki--focused .foki-shadow,
+.foki--curious .foki-shadow {
+  animation: foki-shadow-breathe 3200ms ease-in-out infinite;
+}
+
+/* cabeca: inclinacao ocasional (idle), balanco lento (focused) */
+.foki--idle .foki-head-tilt {
+  animation: foki-tilt 9000ms ease-in-out infinite;
+}
+.foki--focused .foki-head-tilt {
+  animation: foki-bob 1800ms ease-in-out infinite alternate;
+}
+
+/* nadadeiras: remando devagar (idle), batendo rapido (celebrating) */
+.foki--idle .foki-flipper--l {
+  animation: foki-paddle-l 3600ms ease-in-out infinite;
+}
+.foki--idle .foki-flipper--r {
+  animation: foki-paddle-r 3600ms ease-in-out 600ms infinite;
+}
+.foki--celebrating .foki-flipper--l {
+  animation: foki-flap-l 320ms ease-in-out infinite alternate;
+}
+.foki--celebrating .foki-flipper--r {
+  animation: foki-flap-r 320ms ease-in-out infinite alternate;
+}
+
+/* pulo com squash ao aterrissar (2 pulos ~1.6s) */
+.foki--celebrating .foki-char {
+  animation: foki-jump 800ms ease-in-out 2;
+}
+.foki--celebrating .foki-shadow {
+  animation: foki-shadow-jump 800ms ease-in-out 2;
+}
+
+.foki--curious .foki-look {
+  animation: foki-look 4000ms ease-in-out infinite;
+}
+
+.foki-z {
+  animation: foki-z 2700ms ease-out infinite;
+}
+.foki-star {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: foki-star 900ms ease-out both;
+}
+
+@keyframes foki-breathe-body {
   0%,
   100% {
-    transform: scale(1);
+    transform: scale(1, 1);
   }
   50% {
-    transform: scale(1.03);
+    transform: scale(1.025, 0.97);
   }
 }
-
-@keyframes foki-bounce {
-  0% {
-    transform: scale(1) translateY(0);
-  }
-  30% {
-    transform: scale(1.08, 0.94) translateY(2px);
-  }
-  55% {
-    transform: scale(0.96, 1.08) translateY(-8px);
-  }
-  75% {
-    transform: scale(1.03, 0.98) translateY(0);
-  }
-  100% {
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes foki-float {
+@keyframes foki-breathe-head {
   0%,
   100% {
     transform: translateY(0);
-    opacity: 0.6;
   }
   50% {
-    transform: translateY(-4px);
-    opacity: 1;
+    transform: translateY(1.2px);
   }
 }
-
-@keyframes foki-sparkle {
+@keyframes foki-shadow-breathe {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(1.05);
+  }
+}
+@keyframes foki-tilt {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+  78%,
+  90% {
+    transform: rotate(-6deg);
+  }
+}
+@keyframes foki-bob {
+  from {
+    transform: rotate(-3deg) translateY(0);
+  }
+  to {
+    transform: rotate(3deg) translateY(1px);
+  }
+}
+@keyframes foki-paddle-l {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes foki-paddle-r {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+@keyframes foki-flap-l {
+  from {
+    transform: rotate(10deg);
+  }
+  to {
+    transform: rotate(45deg);
+  }
+}
+@keyframes foki-flap-r {
+  from {
+    transform: rotate(-10deg);
+  }
+  to {
+    transform: rotate(-45deg);
+  }
+}
+@keyframes foki-jump {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  20% {
+    transform: translateY(0) scale(1.08, 0.9);
+  }
+  45% {
+    transform: translateY(-14px) scale(0.95, 1.08);
+  }
+  70% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
+  85% {
+    transform: translateY(0) scale(0.98, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+@keyframes foki-shadow-jump {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  45% {
+    transform: scaleX(0.6);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scaleX(1.12);
+  }
+}
+@keyframes foki-look {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1.6px);
+  }
+  60% {
+    transform: translateX(1.6px);
+  }
+}
+@keyframes foki-z {
   0% {
     opacity: 0;
-    transform: scale(0.5) translateY(4px);
+    transform: translate(0, 0) scale(0.7);
   }
-  40% {
+  25% {
     opacity: 1;
-    transform: scale(1.1) translateY(-2px);
   }
   100% {
     opacity: 0;
-    transform: scale(0.9) translateY(-10px);
+    transform: translate(6px, -14px) scale(1.3);
   }
+}
+@keyframes foki-star {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.25) rotate(40deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(90deg);
+  }
+}
+
+/* reduced motion: sem loops, so poses estaticas e fade curto */
+@media (prefers-reduced-motion: reduce) {
+  .foki *,
+  .foki-star,
+  .foki-z {
+    animation: none !important;
+  }
+  .foki-expr {
+    transform: none;
+    transition: opacity 80ms linear;
+  }
+  .foki-head-tilt,
+  .foki-flipper,
+  .foki-flipper--l,
+  .foki-flipper--r {
+    transition: none;
+  }
+  .foki-z {
+    opacity: 1;
+  }
+}
+.foki--still *,
+.foki--still .foki-star {
+  animation: none !important;
 }
