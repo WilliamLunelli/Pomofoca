@@ -17,7 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import spawn from 'cross-spawn';
-import type { ModelSpec, Role } from './config.js';
+import { GATE_CHECKS, type ModelSpec, type Role } from './config.js';
 import type { ToolPolicy } from './fs-tools.js';
 import { childEnv, git, isProtectedPath, logsDir } from './workspace.js';
 
@@ -212,6 +212,18 @@ export function agySettings(policy: ToolPolicy): {
   return { permissions: { allow, deny } };
 }
 
+/**
+ * Comando de teste de UM arquivo, derivado do check "test" do gate. Medido: sem isso o testador
+ * gastava ~5 voltas lendo package.json/jest.config para descobrir como rodar os testes.
+ */
+export function testCommandHint(): string {
+  const t = GATE_CHECKS.find((c) => c.name === 'test');
+  if (!t) return '`npm test -- <arquivo de teste>`';
+  return t.cwd === '.'
+    ? `\`npm run ${t.script} -- <arquivo de teste>\` (na raiz)`
+    : `\`npm run ${t.script} --workspace=${t.cwd} -- <arquivo de teste relativo a ${t.cwd}>\` (na raiz; ex.: \`npm run ${t.script} --workspace=${t.cwd} -- tests/unit/x.test.ts\`)`;
+}
+
 /** Aviso no topo do prompt do agy: comando fora da lista encerra a execução. */
 function agyRules(policy: ToolPolicy): string {
   const cmds = [
@@ -232,11 +244,11 @@ function agyRules(policy: ToolPolicy): string {
     '- Sem acesso à web nem a arquivos .env.',
     '',
     '# Economia (cada ação sua reenvia a conversa inteira ao modelo: menos ações = menos custo)',
-    '- Comece pelos arquivos que a tarefa cita. NÃO explore a árvore do projeto nem rode `git log`/`git status`/`git diff` para "se situar": o gestor já mapeou o código.',
+    '- Comece pelos arquivos que a tarefa cita. NÃO explore a árvore do projeto. NÃO rode `git log`, `git status` nem `git diff` em momento nenhum (nem para conferir no fim): o servidor gera o diff e o gestor já mapeou o código.',
     '- Leia cada arquivo INTEIRO de uma vez (sem pedaços de linhas) e não leia o mesmo arquivo de novo sem ter alterado ele.',
     ...(policy.canRunChecks
       ? [
-          '- Teste só o arquivo que importa (ex.: `npx jest tests/unit/x.test.ts` dentro do pacote) e espere o comando TERMINAR na mesma ação; não consulte o status de tarefas em segundo plano.',
+          `- Para testar, use EXATAMENTE este comando, só com o arquivo que importa: ${testCommandHint()}. Não leia package.json nem configs do Jest para descobrir como rodar. Espere o comando TERMINAR na mesma ação; não consulte o status de tarefas em segundo plano.`,
           '- NÃO rode a suíte completa nem `npm run lint`: o gate do gestor roda tudo depois, sem LLM.',
         ]
       : []),

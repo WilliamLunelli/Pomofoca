@@ -114,7 +114,9 @@ assert.match(r.text, /^\[testador · agy:gemini-3\.8-flash-high · 4 passo\(s\) 
 // Regras de economia no prompt do testador (medido: suíte completa 3x, lint, git status/diff).
 assert.match(c_stdinOf(lastCall()), /NÃO explore a árvore/);
 assert.match(c_stdinOf(lastCall()), /NÃO rode a suíte completa nem `npm run lint`/);
-assert.match(c_stdinOf(lastCall()), /espere o comando TERMINAR/);
+assert.match(c_stdinOf(lastCall()), /comando TERMINAR/);
+assert.match(c_stdinOf(lastCall()), /npm run test --workspace=/, "comando exato de teste vindo do gate");
+assert.match(c_stdinOf(lastCall()), /NÃO rode `git log`, `git status` nem `git diff` em momento nenhum/);
 assert.match(r.text, /Comandos negados\/falhos: `curl https:\/\/exemplo\.com`/);
 assert.doesNotMatch(r.text, /Get-ChildItem/);
 assert.equal(c_argOf(lastCall().argv, '--output-format'), 'stream-json');
