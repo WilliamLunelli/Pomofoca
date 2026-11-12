@@ -154,7 +154,8 @@ function linkNodeModules(root: string, dir: string): void {
     const src = path.join(root, rel, 'node_modules');
     const dst = path.join(dir, rel, 'node_modules');
     if (fs.existsSync(src) && fs.existsSync(path.dirname(dst)) && !fs.existsSync(dst)) {
-      fs.symlinkSync(src, dst, 'dir');
+      // Windows: junction não exige modo de desenvolvedor/admin (symlink 'dir' dá EPERM).
+      fs.symlinkSync(src, dst, process.platform === 'win32' ? 'junction' : 'dir');
     }
   }
 }
@@ -197,9 +198,45 @@ export async function openTask(
 }
 
 /** Remove o worktree, mas MANTÉM a branch (nunca apagamos trabalho; o merge é decisão sua/do gestor). */
+/**
+ * Desfaz os links criados por linkNodeModules (raiz e até 2 níveis), sem tocar no alvo.
+ * Só remove o que é link (symlink ou junction); um node_modules real dentro do worktree fica.
+ */
+export function unlinkNodeModules(dir: string): string[] {
+  const removed: string[] = [];
+  const visit = (rel: string, depth: number) => {
+    const nm = path.join(dir, rel, 'node_modules');
+    try {
+      if (fs.lstatSync(nm).isSymbolicLink()) {
+        // No Node, junction também aparece como symbolic link; unlink remove só o link.
+        fs.unlinkSync(nm);
+        removed.push(path.join(rel, 'node_modules'));
+      }
+    } catch {
+      /* não existe */
+    }
+    if (depth >= 2) return;
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
+        visit(path.join(rel, e.name), depth + 1);
+      }
+    }
+  };
+  visit('.', 0);
+  return removed;
+}
+
 export async function closeTask(id: string): Promise<TaskMeta> {
   const meta = requireTask(id);
-  // Remove os symlinks antes, para o `worktree remove` não tentar mexer em node_modules reais.
+  // Remove os links de node_modules ANTES, para o `worktree remove` nunca atravessar um
+  // link/junction e apagar o node_modules REAL do repositório principal.
+  unlinkNodeModules(meta.dir);
   const rm = await git(repoRoot(), ['worktree', 'remove', '--force', meta.dir]);
   if (rm.code !== 0) throw new Error(`Falha ao remover worktree: ${rm.stderr.trim()}`);
   fs.writeFileSync(metaFile(id), JSON.stringify({ ...meta, closed: true }, null, 2));

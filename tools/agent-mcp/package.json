@@ -13,7 +13,7 @@
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run build && node scripts/policy.mjs && node scripts/delegate.mjs && node scripts/cli.mjs && node scripts/smoke.mjs"
+    "test": "npm run build && node scripts/policy.mjs && node scripts/delegate.mjs && node scripts/cli.mjs && node scripts/worktree.mjs && node scripts/smoke.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.89",
