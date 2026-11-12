@@ -23,8 +23,17 @@ const INTERRUPTION_LOOKBACK_DAYS = 60;
 const INTERRUPTION_MIN_TOTAL_INTERRUPTED = 10;
 const INTERRUPTION_MIN_POINTS_GAP = 20;
 
+const ROUTINE_MISMATCH_LOOKBACK_WEEKS = 4;
+const ROUTINE_MISMATCH_MIN_OFF_SCHEDULE = 3;
+const ROUTINE_MISMATCH_MIN_CONSISTENT = 3;
+
 export interface InsightItem {
-  type: 'peak_hours' | 'weak_day' | 'neglected_subject' | 'interruption_pattern';
+  type:
+    | 'peak_hours'
+    | 'weak_day'
+    | 'neglected_subject'
+    | 'interruption_pattern'
+    | 'routine_mismatch';
   title: string;
   description: string;
   dataPoints: number;
@@ -34,6 +43,17 @@ export interface SessionRecord {
   startedAt: Date;
   completed: boolean;
   subjectId: string | null;
+  // Opcional: so computeRoutineMismatch usa (pra saber se a sessao sobrepoe o
+  // bloco). Ausente = tratada como instantanea (so o horario de inicio).
+  durationSeconds?: number;
+}
+
+export interface RoutineBlockRecord {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  subjectId: string | null;
+  active: boolean;
 }
 
 export interface DailyStatRecord {
@@ -359,6 +379,127 @@ export function computeInterruptionPattern(
   };
 }
 
+function parseTimeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function localMinuteOfDay(instant: Date, timezone: string): number {
+  const minute = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone, minute: '2-digit' }).format(
+      instant,
+    ),
+  );
+  return localHour(instant, timezone) * 60 + minute;
+}
+
+/**
+ * Descompasso rotina x realidade (so SUGESTAO - nunca altera RoutineBlock): para
+ * cada bloco ativo com materia (presente em `subjects`), olha as ultimas
+ * ROUTINE_MISMATCH_LOOKBACK_WEEKS (4) semanas, excluindo hoje (dia incompleto), nas
+ * ocorrencias do dia da semana do bloco (dia/hora no fuso do usuario). Dia com
+ * sessao da materia que sobrepoe o bloco = "no horario"; com sessao mas sem
+ * sobreposicao = "fora do horario"; sem sessao nao conta. Piso: >=
+ * ROUTINE_MISMATCH_MIN_OFF_SCHEDULE (3) ocorrencias fora, mais fora que no horario,
+ * e >= ROUTINE_MISMATCH_MIN_CONSISTENT (3) delas com a 1a sessao do dia no mesmo
+ * bloco de 2h. Entre blocos elegiveis, vence a maior proporcao fora/(fora+no);
+ * desempate por dayOfWeek e depois startTime. `sessions` devem ser so FOCUS.
+ */
+export function computeRoutineMismatch(
+  blocks: RoutineBlockRecord[],
+  sessions: SessionRecord[],
+  subjects: Pick<SubjectRecord, 'id' | 'name'>[],
+  timezone: string,
+  now: Date,
+): InsightItem | null {
+  const subjectNames = new Map(subjects.map((s) => [s.id, s.name]));
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // "materia|dia local" -> sessoes da materia naquele dia.
+  const byDay = new Map<string, { startMin: number; endMin: number; startedAt: number }[]>();
+  for (const session of sessions) {
+    if (!session.subjectId) continue;
+    const startMin = localMinuteOfDay(session.startedAt, timezone);
+    const key = `${session.subjectId}|${localDateSurrogate(session.startedAt, timezone).getTime()}`;
+    const list = byDay.get(key) ?? [];
+    list.push({
+      startMin,
+      endMin: startMin + (session.durationSeconds ?? 0) / 60,
+      startedAt: session.startedAt.getTime(),
+    });
+    byDay.set(key, list);
+  }
+
+  const today = localDateSurrogate(now, timezone).getTime();
+  const windowDays = ROUTINE_MISMATCH_LOOKBACK_WEEKS * 7;
+
+  type Candidate = {
+    block: RoutineBlockRecord;
+    ratio: number;
+    topBlockIndex: number;
+    off: number;
+    on: number;
+    sessionCount: number;
+  };
+  let best: Candidate | null = null;
+
+  for (const block of blocks) {
+    if (!block.active || !block.subjectId || !subjectNames.has(block.subjectId)) continue;
+    const blockStart = parseTimeToMinutes(block.startTime);
+    const blockEnd = parseTimeToMinutes(block.endTime);
+
+    let on = 0;
+    let off = 0;
+    let sessionCount = 0;
+    const offBlockCounts = new Array<number>(BLOCK_LABELS.length).fill(0);
+
+    for (let i = 1; i <= windowDays; i += 1) {
+      const dayKey = today - i * DAY_MS;
+      if (new Date(dayKey).getUTCDay() !== block.dayOfWeek) continue;
+      const daySessions = byDay.get(`${block.subjectId}|${dayKey}`);
+      if (!daySessions || daySessions.length === 0) continue;
+
+      sessionCount += daySessions.length;
+      const overlaps = daySessions.some(
+        (s) => s.startMin < blockEnd && Math.max(s.endMin, s.startMin + 1) > blockStart,
+      );
+      if (overlaps) {
+        on += 1;
+      } else {
+        off += 1;
+        const first = daySessions.reduce((a, b) => (b.startedAt < a.startedAt ? b : a));
+        offBlockCounts[Math.floor(first.startMin / 60 / BLOCK_HOURS)] += 1;
+      }
+    }
+
+    if (off < ROUTINE_MISMATCH_MIN_OFF_SCHEDULE || off <= on) continue;
+    let topBlockIndex = 0;
+    for (let b = 1; b < offBlockCounts.length; b += 1) {
+      if (offBlockCounts[b] > offBlockCounts[topBlockIndex]) topBlockIndex = b;
+    }
+    if (offBlockCounts[topBlockIndex] < ROUTINE_MISMATCH_MIN_CONSISTENT) continue;
+
+    const ratio = off / (off + on);
+    const better =
+      !best ||
+      ratio > best.ratio ||
+      (ratio === best.ratio &&
+        (block.dayOfWeek < best.block.dayOfWeek ||
+          (block.dayOfWeek === best.block.dayOfWeek &&
+            block.startTime < best.block.startTime)));
+    if (better) best = { block, ratio, topBlockIndex, off, on, sessionCount };
+  }
+  if (!best) return null;
+
+  const name = subjectNames.get(best.block.subjectId as string) as string;
+  return {
+    type: 'routine_mismatch',
+    title: 'Rotina fora do compasso',
+    description: `Você planejou ${name} às ${WEEKDAY_NAMES[best.block.dayOfWeek]}, ${best.block.startTime}-${best.block.endTime}, mas nas últimas semanas estudou essa matéria por volta de ${BLOCK_LABELS[best.topBlockIndex]} (${best.off} de ${best.off + best.on} vezes). Que tal ajustar o bloco?`,
+    dataPoints: best.sessionCount,
+  };
+}
+
 export interface InsightsResult {
   hasEnoughData: boolean;
   generatedAt: string | null;
@@ -437,10 +578,16 @@ export async function computeInsightsForUser(
     Math.min(peakHoursSince.getTime(), interruptionSince.getTime()),
   );
 
-  const [rawSessions, rawDailyStats, rawSubjects] = await Promise.all([
+  const [rawSessions, rawDailyStats, rawSubjects, rawBlocks, rawRoutineSubjects] =
+    await Promise.all([
     prisma.pomodoroSession.findMany({
       where: { userId, type: 'FOCUS', startedAt: { gte: earliestSince } },
-      select: { startedAt: true, completed: true, subjectId: true },
+      select: {
+        startedAt: true,
+        completed: true,
+        subjectId: true,
+        durationSeconds: true,
+      },
     }),
     prisma.dailyStudyStat.findMany({
       where: {
@@ -458,12 +605,28 @@ export async function computeInsightsForUser(
       where: { userId, archived: false, weeklyGoalMinutes: { not: null } },
       select: { id: true, name: true, weeklyGoalMinutes: true, createdAt: true },
     }),
+    // Somente leitura: o insight de rotina nunca escreve em RoutineBlock.
+    prisma.routineBlock.findMany({
+      where: { userId, active: true, subjectId: { not: null } },
+      select: {
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        subjectId: true,
+        active: true,
+      },
+    }),
+    prisma.subject.findMany({
+      where: { userId, archived: false },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const sessions: SessionRecord[] = rawSessions.map((s) => ({
     startedAt: s.startedAt,
     completed: s.completed,
     subjectId: s.subjectId,
+    durationSeconds: s.durationSeconds,
   }));
   const dailyStats: DailyStatRecord[] = rawDailyStats.map((s) => ({
     date: s.date,
@@ -494,6 +657,7 @@ export async function computeInsightsForUser(
     computeWeakDay(dailyStats, now),
     computeNeglectedSubject(subjects, neglectedDailyStats, now),
     computeInterruptionPattern(interruptionSessions, timezone),
+    computeRoutineMismatch(rawBlocks, sessions, rawRoutineSubjects, timezone, now),
   ].filter((i): i is InsightItem => i !== null);
 
   return {
