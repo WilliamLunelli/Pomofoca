@@ -46,8 +46,9 @@ const ok = (name) => console.log(`OK   ${name}`) || n++;
 const read = (...p) => fs.readFileSync(path.join(...p), 'utf8').replace(/\r\n/g, '\n'); // autocrlf no Windows
 const c_argOf = (argv, flag) => argv[argv.indexOf(flag) + 1];
 const lastCall = () => JSON.parse(fs.readFileSync(log, 'utf8'));
-const run = (args, writes = {}, mode = 'ok') => {
+const run = (args, writes = {}, mode = 'ok', deletes = []) => {
   process.env.FAKE_CLI_WRITES = JSON.stringify(writes);
+  process.env.FAKE_CLI_DELETES = JSON.stringify(deletes);
   process.env.FAKE_CLI_MODE = mode;
   return delegate(args);
 };
@@ -79,6 +80,7 @@ const denied = c.argv[c.argv.indexOf('--disallowedTools') + 1];
 assert.match(allowed, /Edit/);
 assert.match(allowed, /Bash\(npm run test:\*\)/);
 assert.match(denied, /WebFetch/);
+assert.match(allowed, /Bash\(git rm:\*\)/); // programador pode apagar arquivo
 assert.match(denied, /Read\(\*\*\/\.env\*\)/);
 assert.match(c.stdin, /# Tarefa\nCrie src\/feature\.ts/);
 assert.match(c.system, /PAPEL: Programador/);
@@ -150,6 +152,20 @@ assert.equal(read(wt, 'src', 'feature.ts'), "export const feature = 'ok';\n");
 assert.match(r.text, /NEGADO pelo agy \(fora da permissão do papel\): ReadUrl/);
 ok('testador → agy (accept-edits, só npm test/lint, sem MCP/web/.env); produção alterada é desfeita; ações negadas reportadas');
 
+// ---- 2b) testador apaga arquivo de produção (proibido) e um teste (permitido)
+r = await run(
+  { role: 'testador', taskId: 'cli-x', instruction: 'Limpe' },
+  {},
+  'ok',
+  ['src/feature.ts', 'src/feature.test.ts'],
+);
+assert.equal(r.isError, false, r.text);
+assert.ok(allowedBy(lastCall())('git rm src/feature.test.ts'), 'testador pode git rm');
+assert.equal(read(wt, 'src', 'feature.ts'), "export const feature = 'ok';\n", 'remoção de produção desfeita');
+assert.ok(!fs.existsSync(path.join(wt, 'src', 'feature.test.ts')), 'remoção de teste mantida');
+assert.match(r.text, /POLÍTICA: 1 arquivo\(s\).*src\/feature\.ts/);
+ok('remoção: testador pode apagar teste (git rm liberado); apagar produção é desfeito pela política');
+
 // ---- 3) revisor via agy: somente leitura por regra deny, recebe o diff
 r = await run({ role: 'revisor', taskId: 'cli-x', instruction: 'Revise' }, { 'src/evil.ts': 'x' });
 assert.equal(r.isError, false, r.text);
@@ -159,6 +175,7 @@ assert.ok(c.settings.permissions.deny.includes('write_file(*)'));
 // Comandos de leitura liberados (o Gemini explora pelo shell; negado = fim da execução),
 // npm test/lint não, e nenhum comando pode citar .env (deny vence allow).
 assert.ok(allowedBy(c)('git status; git diff'));
+assert.ok(!allowedBy(c)('git rm src/feature.ts'), 'revisor não apaga arquivo');
 assert.ok(!allowedBy(c)('npm run test'), 'revisor não roda npm test/lint');
 assert.ok(!c.settings.permissions.deny.includes('command(*)'));
 assert.ok(c.settings.permissions.deny.includes('command(regex:.*\\.env.*)'));

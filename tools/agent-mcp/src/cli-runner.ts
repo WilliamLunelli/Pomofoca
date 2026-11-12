@@ -93,7 +93,8 @@ function claudeArgs(req: CliRequest, systemFile: string): string[] {
   const writes = Boolean(req.policy.canWrite);
   const allowed = ['Read', 'Grep', 'Glob', 'LS'];
   const denied = ['WebFetch', 'WebSearch', 'Task', 'NotebookEdit', 'Read(**/.env*)'];
-  if (writes) allowed.push('Edit', 'MultiEdit', 'Write');
+  // git rm: única forma de APAGAR arquivo; a política pós-execução desfaz remoções proibidas.
+  if (writes) allowed.push('Edit', 'MultiEdit', 'Write', 'Bash(git rm:*)');
   else denied.push('Edit', 'MultiEdit', 'Write');
   if (req.policy.canRunChecks) allowed.push(...CHECK_COMMANDS.map((c) => `Bash(${c}:*)`));
   else denied.push('Bash');
@@ -145,6 +146,9 @@ const AGY_READ_COMMANDS = [
   'git grep',
 ];
 
+/** Comandos de escrita liberados para papéis que escrevem (apagar arquivo). */
+const WRITE_COMMANDS = ['git rm'];
+
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -185,7 +189,11 @@ export function agySettings(policy: ToolPolicy): {
   // Uma regra regex só: no agy 1.5.6 a regra por prefixo `command(Get-ChildItem)` não casa
   // com `Get-ChildItem -Force`; a forma regex casa. Checks entram na mesma lista para poder
   // encadear (ex.: `npm run lint; npm run test`).
-  const cmds = [...AGY_READ_COMMANDS, ...(policy.canRunChecks ? CHECK_COMMANDS : [])];
+  const cmds = [
+    ...AGY_READ_COMMANDS,
+    ...(policy.canWrite ? WRITE_COMMANDS : []),
+    ...(policy.canRunChecks ? CHECK_COMMANDS : []),
+  ];
   const allow = [`command(${commandRegex(cmds)})`];
   if (!policy.canWrite) deny.push('write_file(*)');
   return { permissions: { allow, deny } };
@@ -193,7 +201,11 @@ export function agySettings(policy: ToolPolicy): {
 
 /** Aviso no topo do prompt do agy: comando fora da lista encerra a execução. */
 function agyRules(policy: ToolPolicy): string {
-  const cmds = [...AGY_READ_COMMANDS, ...(policy.canRunChecks ? CHECK_COMMANDS : [])];
+  const cmds = [
+    ...AGY_READ_COMMANDS,
+    ...(policy.canWrite ? WRITE_COMMANDS : []),
+    ...(policy.canRunChecks ? CHECK_COMMANDS : []),
+  ];
   return [
     '# Regras desta execução (modo não interativo)',
     `- Comandos de terminal liberados: ${cmds.join(', ')}. Pode encadear com ";", "&&" ou "|" só entre comandos dessa lista; nada de redirecionamento (>, <) nem $(...).`,
@@ -201,7 +213,7 @@ function agyRules(policy: ToolPolicy): string {
       (policy.canWrite ? ', criar e editar arquivos' : '') +
       ') em vez do terminal.',
     policy.canWrite
-      ? '- Crie e edite arquivos com as ferramentas de arquivo, nunca pelo terminal.'
+      ? '- Crie e edite arquivos com as ferramentas de arquivo; para APAGAR um arquivo use `git rm <caminho>`.'
       : '- Você NÃO pode criar nem alterar arquivos nesta execução: só leia e responda.',
     '- Trabalhe só dentro da pasta atual: caminhos relativos, sem "..", sem caminho absoluto, sem ~.',
     '- Sem acesso à web nem a arquivos .env.',

@@ -47,6 +47,8 @@ if (process.env.FAKE_CLI_LOG) {
   );
 }
 
+// FAKE_CLI_DELETES: JSON ["caminho"] - arquivos que o "modelo" apaga.
+for (const rel of JSON.parse(process.env.FAKE_CLI_DELETES || '[]')) fs.rmSync(path.join(process.cwd(), rel), { force: true });
 for (const [rel, content] of Object.entries(JSON.parse(process.env.FAKE_CLI_WRITES || '{}'))) {
   const abs = path.join(process.cwd(), rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
