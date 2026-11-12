@@ -92,7 +92,7 @@ ok('programador: tool-call executado, relatório curto + diffstat, tokens somado
 assert.match(systemSeen, /Convenção X/);
 ok('CONVENTIONS.md do projeto entra no prompt de sistema do worker');
 
-const wt = path.join(repo, '.agent-worktrees', 'feat-x');
+const wt = path.join(path.dirname(repo), `${path.basename(repo)}-agent-worktrees`, 'feat-x');
 assert.equal(fs.readFileSync(path.join(wt, 'src', 'feature.ts'), 'utf8'), "export const feature = 'ok';\n");
 assert.ok(!fs.existsSync(path.join(repo, 'src', 'feature.ts')), 'repo principal não pode ser tocado');
 assert.match(git('log', '--format=%s', 'agent/feat-x'), /agent\(programador\): Crie src\/feature\.ts/);

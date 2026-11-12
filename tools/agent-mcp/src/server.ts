@@ -63,7 +63,7 @@ server.registerTool(
     guarded(async () => {
       const { meta, reused } = await openTask(id, base);
       return reply(
-        `${reused ? 'Tarefa já estava aberta' : 'Tarefa aberta'}: branch ${meta.branch}, base ${meta.base.slice(0, 8)}, worktree em .agent-worktrees/${meta.id}`,
+        `${reused ? 'Tarefa já estava aberta' : 'Tarefa aberta'}: branch ${meta.branch}, base ${meta.base.slice(0, 8)}, worktree em ${meta.dir}`,
       );
     }),
 );

@@ -81,7 +81,17 @@ export const git = (cwd: string, args: string[]) => run('git', args, { cwd });
 // ---------------------------------------------------------------- diretórios
 
 export const logsDir = () => path.join(repoRoot(), '.agent-logs');
-export const worktreesDir = () => path.join(repoRoot(), '.agent-worktrees');
+/**
+ * Worktrees ficam FORA do repo, numa pasta irmã: `<pai>/<repo>-agent-worktrees/<taskId>`.
+ * - Dentro do repo, o `eslint .` da raiz varreria os worktrees.
+ * - Um segmento começando com ponto (`.agent-worktrees`) quebra o Jest no Windows: ele monta
+ *   o glob como `Pomofoca\.agent-worktrees/...`, o `\.` vira ponto escapado e nenhum teste casa
+ *   ("No tests found", visto no gate real).
+ * AGENT_WORKTREES_DIR sobrescreve.
+ */
+export const worktreesDir = () =>
+  process.env.AGENT_WORKTREES_DIR?.trim() ||
+  path.join(path.dirname(repoRoot()), `${path.basename(repoRoot())}-agent-worktrees`);
 
 // ------------------------------------------------------------------- tarefas
 

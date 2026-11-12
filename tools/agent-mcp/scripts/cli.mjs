@@ -54,7 +54,7 @@ const run = (args, writes = {}, mode = 'ok', deletes = []) => {
 };
 
 await openTask('cli-x');
-const wt = path.join(repo, '.agent-worktrees', 'cli-x');
+const wt = path.join(path.dirname(repo), `${path.basename(repo)}-agent-worktrees`, 'cli-x');
 
 // ---- 1) programador via claude-cli: escreve código + (indevidamente) teste e CLAUDE.md
 let r = await run(

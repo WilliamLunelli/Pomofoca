@@ -75,7 +75,8 @@ check('11 ferramentas expostas', tools.length === 11, names.join(','));
 
 let r = await call('tarefa_abrir', { taskId: 'demo' });
 check('tarefa_abrir cria worktree', !r.isError && /agent\/demo/.test(r.text), r.text);
-check('worktree existe no disco', fs.existsSync(path.join(repo, '.agent-worktrees', 'demo', 'package.json')));
+const wtDir = path.join(path.dirname(repo), `${path.basename(repo)}-agent-worktrees`, 'demo');
+check('worktree existe no disco (pasta irmã, fora do repo)', fs.existsSync(path.join(wtDir, 'package.json')));
 
 r = await call('tarefa_abrir', { taskId: 'Nome Inválido' });
 check('taskId inválido é recusado', r.isError, r.text);
@@ -97,7 +98,7 @@ r = await call('custos', { taskId: 'demo' });
 check('custos registra as tentativas', /Tokens totais/.test(r.text) || /Nenhuma/.test(r.text), r.text);
 
 r = await call('tarefa_encerrar', { taskId: 'demo' });
-check('tarefa_encerrar remove worktree e mantém branch', !r.isError && !fs.existsSync(path.join(repo, '.agent-worktrees', 'demo')), r.text);
+check('tarefa_encerrar remove worktree e mantém branch', !r.isError && !fs.existsSync(wtDir), r.text);
 check('branch agent/demo continua existindo', sh('branch', '--list', 'agent/demo').toString().includes('agent/demo'));
 
 await client.close();
