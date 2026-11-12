@@ -262,6 +262,22 @@ ok('agy: `..`, caminho absoluto, ~, .env e .agent-* são negados mesmo em comand
 }
 ok('painel: ledger guarda instrução/id/transcrição; relatório em reports.jsonl; "em andamento" limpo');
 
+// ---- 5e) orçamento liberado pelo usuário para UMA tarefa (.agent-logs/budgets.json)
+{
+  const { budgetBlock, tokenLimitFor } = await import(dist('ledger.js'));
+  const logs = path.join(repo, '.agent-logs');
+  const used = entries('cli-x').reduce((s, e) => s + e.inputTokens + e.outputTokens, 0);
+  process.env.AGENT_MAX_TOKENS_PER_TASK = String(used); // simulado: padrão já estourado
+  fs.writeFileSync(path.join(logs, 'budgets.json'), JSON.stringify({ 'cli-x': used + 1000, outra: 'x' }));
+  assert.equal(tokenLimitFor('cli-x'), used + 1000);
+  assert.equal(budgetBlock('cli-x'), null, 'tarefa liberada continua');
+  fs.writeFileSync(path.join(logs, 'budgets.json'), JSON.stringify({ 'cli-x': used }));
+  assert.match(budgetBlock('cli-x'), /Orçamento da tarefa estourado/);
+  fs.rmSync(path.join(logs, 'budgets.json'));
+  delete process.env.AGENT_MAX_TOKENS_PER_TASK;
+}
+ok('orçamento: budgets.json libera mais tokens só para a tarefa indicada');
+
 // ---- 6) parse tolerante
 assert.deepEqual(lastJson('warn {x}\n{"a":1}'), { a: 1 });
 assert.equal(lastJson('nada aqui'), undefined);

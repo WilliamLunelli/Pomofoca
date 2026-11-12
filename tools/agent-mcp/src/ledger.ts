@@ -94,11 +94,30 @@ export function entries(taskId?: string): LedgerEntry[] {
 }
 
 /** Retorna uma mensagem de bloqueio se o orçamento da tarefa acabou; senão, null. */
+/**
+ * Limite de tokens da tarefa. `.agent-logs/budgets.json` ({ "<taskId>": <tokens> }) permite ao
+ * USUÁRIO liberar mais orçamento para uma tarefa específica sem mudar o padrão das outras e sem
+ * reiniciar o servidor. Os workers não escrevem em .agent-logs/ (caminho negado a todos).
+ */
+export function tokenLimitFor(taskId: string): number {
+  try {
+    const budgets = JSON.parse(
+      fs.readFileSync(path.join(logsDir(), 'budgets.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const v = Number(budgets[taskId]);
+    if (Number.isFinite(v) && v > 0) return v;
+  } catch {
+    /* sem arquivo ou inválido: usa o padrão */
+  }
+  return MAX_TOKENS_PER_TASK;
+}
+
 export function budgetBlock(taskId: string): string | null {
   const list = entries(taskId);
   const tokens = list.reduce((s, e) => s + e.inputTokens + e.outputTokens, 0);
-  if (tokens >= MAX_TOKENS_PER_TASK) {
-    return `Orçamento da tarefa estourado (${tokens} de ${MAX_TOKENS_PER_TASK} tokens). Pare, resuma o estado atual ao usuário e peça decisão.`;
+  const limit = tokenLimitFor(taskId);
+  if (tokens >= limit) {
+    return `Orçamento da tarefa estourado (${tokens} de ${limit} tokens). Pare, resuma o estado atual ao usuário e peça decisão.`;
   }
   if (list.length >= MAX_DELEGATIONS_PER_TASK) {
     return `Limite de ${MAX_DELEGATIONS_PER_TASK} delegações por tarefa atingido. Pare, resuma o estado atual ao usuário e peça decisão.`;
@@ -128,7 +147,7 @@ export function report(taskId?: string): string {
       `- ${k}: ${v.calls} chamada(s), ${v.inTok} in / ${v.outTok} out, ${(v.ms / 1000).toFixed(0)}s`,
   );
   return [
-    `Tokens totais${taskId ? ` da tarefa ${taskId}` : ''}: ${total} (limite por tarefa: ${MAX_TOKENS_PER_TASK})`,
+    `Tokens totais${taskId ? ` da tarefa ${taskId}` : ''}: ${total} (limite: ${taskId ? tokenLimitFor(taskId) : MAX_TOKENS_PER_TASK})`,
     ...lines,
     'Para custo em dinheiro, multiplique pelos preços atuais de cada modelo (não embutidos aqui de propósito).',
   ].join('\n');

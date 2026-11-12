@@ -118,6 +118,7 @@ function state() {
     .map((f) => readJson(path.join(logs, 'running', f)))
     .filter(Boolean);
 
+  const budgets = readJson(path.join(logs, 'budgets.json')) ?? {};
   const tasks = listDir(path.join(logs, 'tasks'))
     .filter((f) => f.endsWith('.json'))
     .map((f) => readJson(path.join(logs, 'tasks', f)))
@@ -153,6 +154,7 @@ function state() {
       createdAt: meta.createdAt ?? ds[0]?.ts ?? null,
       closed: Boolean(meta.closed),
       tokens,
+      tokenLimit: Number(budgets[id]) > 0 ? Number(budgets[id]) : TOKEN_LIMIT,
       delegations: ds,
       gates: gates.filter((g) => g.taskId === id),
       running: running.filter((r) => r.taskId === id),
@@ -418,13 +420,13 @@ function gateEv(g) {
 
 function renderTask(t, limits) {
   if (!t) return '<div class="card empty">Nenhuma tarefa ainda. Ela aparece aqui assim que o gestor chamar <code>tarefa_abrir</code>.</div>';
-  const pct = Math.min(100, (t.tokens / limits.tokens) * 100);
+  const pct = Math.min(100, (t.tokens / t.tokenLimit) * 100);
   const lastGate = t.gates.at(-1);
   let html = '<div class="card taskhead">' +
     '<div><div class="row"><b>' + esc(t.id) + '</b>' + (t.closed ? '<span class="badge none">encerrada</span>' : t.running.length ? '<span class="badge run">em andamento</span>' : '<span class="badge ok">aberta</span>') + '</div>' +
     '<div class="kv">branch <code>' + esc(t.branch || '—') + '</code> · base <code>' + esc((t.base || '').slice(0, 8)) + '</code></div>' +
     '<div class="kv">worktree <code>' + esc(t.dir || '—') + '</code></div></div>' +
-    '<div><div class="kv">orçamento: <code>' + fmtTok(t.tokens) + '</code> de ' + fmtTok(limits.tokens) + ' tokens</div><div class="bar ' + (pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '') + '"><span style="width:' + pct + '%"></span></div>' +
+    '<div><div class="kv">orçamento: <code>' + fmtTok(t.tokens) + '</code> de ' + fmtTok(t.tokenLimit) + ' tokens' + (t.tokenLimit !== limits.tokens ? ' (liberado pelo usuário)' : '') + '</div><div class="bar ' + (pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '') + '"><span style="width:' + pct + '%"></span></div>' +
     '<div class="kv" style="margin-top:6px">delegações: <code>' + t.delegations.length + '</code> de ' + limits.delegations + '</div></div>' +
     '<div><div class="kv">último gate</div><div class="gates">' + (lastGate ? lastGate.results.map((r) => '<span class="badge ' + (r.status === 'pass' ? 'ok' : r.status === 'fail' ? 'fail' : 'none') + '">' + esc(r.name) + '</span>').join('') : '<span class="badge none">ainda não rodou</span>') + '</div></div>' +
     '</div>';
