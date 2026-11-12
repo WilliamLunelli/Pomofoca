@@ -396,8 +396,8 @@ export function TimerPage() {
   }, [offset]);
   const ringTransition =
     reducedMotion || !running || ringJump
-      ? 'stroke 400ms ease'
-      : 'stroke-dashoffset 1000ms linear, stroke 400ms ease';
+      ? 'stroke var(--motion-slow) ease'
+      : 'stroke-dashoffset 1000ms linear, stroke var(--motion-slow) ease';
 
   const timerFokiState: FokiState = celebrating
     ? 'celebrating'
@@ -613,7 +613,7 @@ export function TimerPage() {
                         <div key={task.id} className="flex items-center gap-2">
                           <button
                             onClick={() => setSelectedTaskId(isActive ? null : task.id)}
-                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors duration-[240ms]"
+                            className="flex-1 rounded-sm px-2.5 py-1.5 text-left text-[13px] transition-colors duration-[var(--motion-base)]"
                             style={
                               isActive
                                 ? {

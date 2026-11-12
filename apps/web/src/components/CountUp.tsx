@@ -19,18 +19,23 @@ interface CountUpProps {
 export function CountUp({ value, format }: CountUpProps) {
   const reduced = useReducedMotion();
   const [display, setDisplay] = useState(reduced ? value : 0);
-  const fromRef = useRef(0);
+  const fromRef = useRef(reduced ? value : 0);
 
   useEffect(() => {
     if (reduced) {
+      fromRef.current = value;
       setDisplay(value);
       return;
     }
     const from = fromRef.current;
+    if (from === value) {
+      setDisplay(value);
+      return;
+    }
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
-      const t = Math.min((now - start) / DURATION_MS, 1);
+      const t = Math.max(0, Math.min((now - start) / DURATION_MS, 1));
       const current = Math.round(from + (value - from) * easeOut(t));
       fromRef.current = current;
       setDisplay(current);

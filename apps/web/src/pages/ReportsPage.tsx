@@ -360,7 +360,7 @@ export function ReportsPage() {
       )}
 
       {!blocked && summary && reportsLayout === 'narrative' && (
-        <div className="stagger flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
           <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="card p-6">
               <h6 className="mb-3">Minutos estudados</h6>

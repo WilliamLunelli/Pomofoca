@@ -56,6 +56,7 @@ export function SubjectTasks({ subjectId }: SubjectTasksProps) {
               }}
               data-done={task.completed}
               data-pop={poppedId === task.id && task.completed}
+              onAnimationEnd={() => setPoppedId(null)}
               className="task-check flex h-[18px] w-[18px] flex-none items-center justify-center rounded-sm border"
               style={{
                 borderColor: task.completed
