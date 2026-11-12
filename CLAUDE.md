@@ -96,6 +96,7 @@ src/
 ├── components/
 │   ├── AppShell.tsx              # sidebar (desktop) + nav inferior (mobile)
 │   ├── Foki.tsx                  # mascote reativo (ver seção própria abaixo)
+│   ├── landing/                  # demos da landing (ver seção "Landing" abaixo)
 │   └── PlanCards.tsx             # os 3 cards de plano, usado em Landing/Onboarding/
 │                                     Subscription (ver seção "Preço do Premium")
 ├── context/
@@ -140,8 +141,23 @@ automaticamente). Mapeamento de estado usado hoje:
 - `TimerPage`: `focused` (com fone de ouvido) enquanto um ciclo FOCUS está rodando;
   `celebrating` (bounce + sparkles, ~1.6s) no instante em que um ciclo FOCUS é
   concluído; `idle` em qualquer outro caso (pausado, parado, ou durante uma pausa)
-- `LandingPage`: `idle` perto do hero, `sleeping` pequena no rodapé, como assinatura
-  discreta de marca
+- Landing: `focused` → `celebrating` no `DemoTimer` do hero (acompanha o ciclo
+  acelerado da demo) e `celebrating` nos cards de streak/CTA final. Com
+  `prefers-reduced-motion`, todos caem pra `idle` (via `useReducedMotion`)
+
+### Landing (`src/pages/LandingPage.tsx` + `src/components/landing/`)
+
+Redesenhada pra mostrar o produto em vez de descrevê-lo: hero assimétrico com
+`DemoTimer` (anel SVG num ciclo acelerado de 12s, atualizado por refs, sem setState
+por frame; pausa fora da viewport e com aba oculta) + `DemoHeatmap` (dados fixos
+gerados por seed em `demoData.ts`, 26 semanas no mobile), bento com `DemoSubjects`,
+"Como funciona" em 3 passos, offline + `DemoWeek` (rotina semanal), `PlanCards` e
+CTA final. `LandingHeader` fica sticky. Todos os demos são **dados fictícios e
+decorativos** (`aria-hidden`/`role="img"`), nunca chamam a API. Tokens próprios da
+landing em `tokens.css` (`--text-display`, `--landing-*`); `--landing-on-block` é
+fixo nos dois temas de propósito (texto sobre os blocos pastel do `DemoWeek`).
+Sob `prefers-reduced-motion`: timer estático em 18:42, `.reveal` sem transição.
+Sem travessão (— ou –) em texto visível da landing.
 
 ### Tint de accent theme-aware (`--color-accent-tint`)
 
@@ -364,6 +380,14 @@ integração via Jest/Supertest.
   testado num navegador de verdade** — só validei que o backend responde certo a
   um ID token forjado/ausente; o clique real no botão do Google, o consentimento e
   o retorno do ID token de verdade dependem de um browser)
+- **health** — `GET /api/health`, pública (pra monitor/uptime/healthcheck de
+  container), sem auth. Checa Postgres (`SELECT 1`) e Redis (`ping`) em paralelo,
+  cada um com timeout `HEALTH_CHECK_TIMEOUT_MS` (default 2000). 200 `{status:'ok'}`
+  se ambos respondem, 503 `{status:'degraded'}` se algum falha; o detalhe por
+  dependência (`checks`) só aparece fora de produção. Resultado cacheado por
+  `HEALTH_CACHE_MS` (default 2000) com single-flight, pra rajada de requests não
+  virar rajada de queries. Substituiu o antigo `app.get('/health')` fixo do
+  `app.ts` (que respondia ok sem checar nada)
 - **users** — `GET/PATCH /users/me` (perfil; só nome editável por enquanto)
 - **subjects** — CRUD de matérias + archive/restore.
   `middlewares/plan.middleware.ts::enforceSubjectLimit` bloqueia (403
@@ -716,7 +740,7 @@ converter quem ainda não decidiu assinar.
 Feito — backend completo (auth, users, subjects, sessions, reports, subscriptions),
 frontend completo (todas as telas do MVP conectadas à API real), ambos validados:
 
-- Testes automatizados: suite completa do backend em **123/123** passando
+- Testes automatizados: suite completa do backend em **134/134** passando
   (`npm run test --workspace=apps/api`), sem depender do `.env` local
 - Backend validado manualmente ponta a ponta contra Postgres/Redis reais (docker
   compose) em cada módulo: auth (registro/login/refresh com rotação), subjects
