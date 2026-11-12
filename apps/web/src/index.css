@@ -138,6 +138,14 @@
     color: var(--color-accent);
   }
 
+  .nav-cta {
+    background: var(--color-accent-tint);
+    color: var(--color-accent);
+  }
+  .nav-cta:hover {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  }
+
   .card {
     background: var(--color-surface);
     border: 1px solid var(--color-divider);

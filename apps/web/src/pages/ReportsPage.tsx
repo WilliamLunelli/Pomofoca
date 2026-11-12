@@ -49,13 +49,13 @@ const PERIODS: { value: Period; label: string }[] = [
 
 const HEATMAP_LEVEL_COLOR = [
   'var(--f-track)',
-  'var(--color-accent-200)',
-  'var(--color-accent-400)',
-  'var(--color-accent-600)',
-  'var(--color-accent-800)',
+  'color-mix(in srgb, var(--color-accent) 25%, transparent)',
+  'color-mix(in srgb, var(--color-accent) 45%, transparent)',
+  'color-mix(in srgb, var(--color-accent) 70%, transparent)',
+  'var(--color-accent)',
 ];
 
-// Barra de hoje (ultimo ponto da serie) em accent cheio; as demais mais suaves.
+// Barra de hoje (ponto cuja data e hoje no fuso local) em accent cheio; as demais mais suaves.
 const BAR_TODAY = 'var(--color-accent)';
 const BAR_SOFT = 'color-mix(in srgb, var(--color-accent) 55%, transparent)';
 
@@ -175,14 +175,16 @@ export function ReportsPage() {
     [breakdown],
   );
 
-  const trendData = useMemo(
-    () =>
-      (trend?.points ?? []).map((p) => ({
-        label: p.from.slice(5),
-        minutes: p.minutes,
-      })),
-    [trend],
-  );
+  const trendData = useMemo(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const todayLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return (trend?.points ?? []).map((p) => ({
+      label: p.from.slice(5),
+      minutes: p.minutes,
+      isToday: p.from.slice(0, 10) === todayLocal,
+    }));
+  }, [trend]);
 
   const heatmapWeeks = useMemo(() => {
     if (!heatmap) return [];
@@ -491,10 +493,10 @@ export function ReportsPage() {
                     // medidas durante a entrada da pagina e desalinha barras e rotulos
                     isAnimationActive={false}
                   >
-                    {trendData.map((p, i) => (
+                    {trendData.map((p) => (
                       <Cell
                         key={p.label}
-                        fill={i === trendData.length - 1 ? BAR_TODAY : BAR_SOFT}
+                        fill={p.isToday ? BAR_TODAY : BAR_SOFT}
                       />
                     ))}
                   </Bar>
@@ -531,10 +533,10 @@ export function ReportsPage() {
                     radius={[3, 3, 0, 0]}
                     isAnimationActive={false}
                   >
-                    {trendData.map((p, i) => (
+                    {trendData.map((p) => (
                       <Cell
                         key={p.label}
-                        fill={i === trendData.length - 1 ? BAR_TODAY : BAR_SOFT}
+                        fill={p.isToday ? BAR_TODAY : BAR_SOFT}
                       />
                     ))}
                   </Bar>

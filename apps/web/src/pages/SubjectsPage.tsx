@@ -21,11 +21,25 @@ function WeeklyProgress({
   color,
   studied,
   goal,
+  status,
 }: {
   color: string;
   studied: number;
   goal: number;
+  status: 'loading' | 'ok' | 'error';
 }) {
+  if (status === 'loading') {
+    return (
+      <div className="mt-3" aria-hidden="true">
+        <div className="h-1 rounded-full bg-track opacity-60" />
+      </div>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div className="mt-3 text-xs text-muted">meta: {Math.round(goal / 60)}h/semana</div>
+    );
+  }
   const pct = Math.min((studied / goal) * 100, 100);
   const done = studied >= goal;
   return (
@@ -60,6 +74,7 @@ export function SubjectsPage() {
   const [expandedTasksFor, setExpandedTasksFor] = useState<string | null>(null);
 
   const [weekMinutes, setWeekMinutes] = useState<Record<string, number>>({});
+  const [weekStatus, setWeekStatus] = useState<'loading' | 'ok' | 'error'>('loading');
 
   // Uma unica chamada pra pagina toda (nao uma por card). Falha silenciosa: o
   // progresso e um extra, os cards continuam mostrando so a meta.
@@ -69,8 +84,9 @@ export function SubjectsPage() {
       const map: Record<string, number> = {};
       for (const b of data.subjects) if (b.subjectId) map[b.subjectId] = b.minutes;
       setWeekMinutes(map);
+      setWeekStatus('ok');
     } catch {
-      // sem progresso
+      setWeekStatus('error');
     }
   }, []);
 
@@ -267,6 +283,7 @@ export function SubjectsPage() {
                   color={s.color}
                   studied={weekMinutes[s.id] ?? 0}
                   goal={s.weeklyGoalMinutes}
+                  status={weekStatus}
                 />
               ) : null}
               </div>
