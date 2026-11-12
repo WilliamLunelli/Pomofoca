@@ -1,4 +1,12 @@
-import { Books, CalendarBlank, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
+import {
+  Books,
+  CalendarBlank,
+  CalendarX,
+  Clock,
+  Flame,
+  Lock,
+  Warning,
+} from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -307,8 +315,8 @@ export function ReportsPage() {
         </div>
       ) : insights.insights.length === 0 ? (
         <p className="text-sm text-muted">
-          Nada de específico pra destacar ainda. Seu padrão de estudo está equilibrado,
-          ou ainda não há dado suficiente pra um insight específico.
+          Nada de específico pra destacar ainda. Seu padrão de estudo está equilibrado, ou
+          ainda não há dado suficiente pra um insight específico.
         </p>
       ) : (
         <div className="flex flex-col gap-4">
@@ -494,10 +502,7 @@ export function ReportsPage() {
                     isAnimationActive={false}
                   >
                     {trendData.map((p) => (
-                      <Cell
-                        key={p.label}
-                        fill={p.isToday ? BAR_TODAY : BAR_SOFT}
-                      />
+                      <Cell key={p.label} fill={p.isToday ? BAR_TODAY : BAR_SOFT} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -534,10 +539,7 @@ export function ReportsPage() {
                     isAnimationActive={false}
                   >
                     {trendData.map((p) => (
-                      <Cell
-                        key={p.label}
-                        fill={p.isToday ? BAR_TODAY : BAR_SOFT}
-                      />
+                      <Cell key={p.label} fill={p.isToday ? BAR_TODAY : BAR_SOFT} />
                     ))}
                   </Bar>
                 </BarChart>

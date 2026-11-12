@@ -271,7 +271,9 @@ export function RoutinePage() {
                             blockHeight(block.startTime, block.endTime),
                             18,
                           ),
-                          background: subject?.color ? `${color}22` : 'var(--color-accent-tint)',
+                          background: subject?.color
+                            ? `${color}22`
+                            : 'var(--color-accent-tint)',
                           borderLeft: `2px solid ${color}`,
                           opacity: block.active ? 1 : 0.4,
                         }}

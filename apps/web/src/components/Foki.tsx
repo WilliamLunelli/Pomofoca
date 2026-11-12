@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
-export type FokiState = 'idle' | 'focused' | 'celebrating' | 'sad' | 'sleeping' | 'curious';
+export type FokiState =
+  'idle' | 'focused' | 'celebrating' | 'sad' | 'sleeping' | 'curious';
 
 interface FokiProps {
   state: FokiState;
@@ -41,7 +42,12 @@ function Eye({
     <>
       <circle cx={cx} cy={cy} r={r} style={{ fill: 'var(--foki-eye)' }} />
       <circle cx={cx + 2} cy={cy - 2.2} r={big} style={{ fill: 'var(--foki-shine)' }} />
-      <circle cx={cx - 1.8} cy={cy + 2.2} r={small} style={{ fill: 'var(--foki-shine)' }} />
+      <circle
+        cx={cx - 1.8}
+        cy={cy + 2.2}
+        r={small}
+        style={{ fill: 'var(--foki-shine)' }}
+      />
     </>
   );
 }
@@ -218,7 +224,13 @@ export function Foki({ state, size = 64, className }: FokiProps) {
                 strokeWidth="0.8"
                 strokeOpacity="0.5"
               />
-              <ellipse cx="50" cy="55.5" rx="2.4" ry="1.7" style={{ fill: 'var(--foki-eye)' }} />
+              <ellipse
+                cx="50"
+                cy="55.5"
+                rx="2.4"
+                ry="1.7"
+                style={{ fill: 'var(--foki-eye)' }}
+              />
               {size >= 56 && (
                 <g
                   stroke="var(--foki-outline)"
@@ -300,8 +312,14 @@ export function Foki({ state, size = 64, className }: FokiProps) {
 
               {/* olhos concentrados (semicerrados) */}
               <g className="foki-expr" data-on={on('focused')}>
-                <path d="M32.5 49 a5.5 5.5 0 0 0 11 0z" style={{ fill: 'var(--foki-eye)' }} />
-                <path d="M56.5 49 a5.5 5.5 0 0 0 11 0z" style={{ fill: 'var(--foki-eye)' }} />
+                <path
+                  d="M32.5 49 a5.5 5.5 0 0 0 11 0z"
+                  style={{ fill: 'var(--foki-eye)' }}
+                />
+                <path
+                  d="M56.5 49 a5.5 5.5 0 0 0 11 0z"
+                  style={{ fill: 'var(--foki-eye)' }}
+                />
                 <circle cx="40" cy="51.8" r="1.2" style={{ fill: 'var(--foki-shine)' }} />
                 <circle cx="64" cy="51.8" r="1.2" style={{ fill: 'var(--foki-shine)' }} />
                 <path

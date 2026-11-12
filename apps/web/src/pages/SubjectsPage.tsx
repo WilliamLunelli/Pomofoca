@@ -49,7 +49,12 @@ function WeeklyProgress({
           {formatHM(studied)} de {formatHM(goal)} esta semana
         </span>
         {done && (
-          <Check size={12} weight="bold" className="flex-none" style={{ color: 'var(--f-ok)' }} />
+          <Check
+            size={12}
+            weight="bold"
+            className="flex-none"
+            style={{ color: 'var(--f-ok)' }}
+          />
         )}
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-track">
@@ -249,43 +254,43 @@ export function SubjectsPage() {
           return (
             <div key={s.id} className="card overflow-hidden">
               <div className="p-5">
-              <div className="flex items-center gap-4">
-                <div
-                  className="h-[38px] w-[38px] flex-none rounded-sm"
-                  style={{ background: `${s.color}22` }}
-                >
-                  <div className="flex h-full w-full items-center justify-center">
-                    <span
-                      className="h-3 w-3 rounded-full"
-                      style={{ background: s.color }}
+                <div className="flex items-center gap-4">
+                  <div
+                    className="h-[38px] w-[38px] flex-none rounded-sm"
+                    style={{ background: `${s.color}22` }}
+                  >
+                    <div className="flex h-full w-full items-center justify-center">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{ background: s.color }}
+                      />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-heading text-[15px]">{s.name}</div>
+                  </div>
+                  <div className="flex flex-none items-center gap-1">
+                    <SubjectTasksToggle
+                      expanded={tasksExpanded}
+                      onToggle={() => setExpandedTasksFor(tasksExpanded ? null : s.id)}
                     />
+                    <button
+                      className="btn btn-ghost btn-icon"
+                      title="Arquivar"
+                      onClick={() => archive(s.id)}
+                    >
+                      <Archive size={16} />
+                    </button>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-heading text-[15px]">{s.name}</div>
-                </div>
-                <div className="flex flex-none items-center gap-1">
-                  <SubjectTasksToggle
-                    expanded={tasksExpanded}
-                    onToggle={() => setExpandedTasksFor(tasksExpanded ? null : s.id)}
+                {s.weeklyGoalMinutes ? (
+                  <WeeklyProgress
+                    color={s.color}
+                    studied={weekMinutes[s.id] ?? 0}
+                    goal={s.weeklyGoalMinutes}
+                    status={weekStatus}
                   />
-                  <button
-                    className="btn btn-ghost btn-icon"
-                    title="Arquivar"
-                    onClick={() => archive(s.id)}
-                  >
-                    <Archive size={16} />
-                  </button>
-                </div>
-              </div>
-              {s.weeklyGoalMinutes ? (
-                <WeeklyProgress
-                  color={s.color}
-                  studied={weekMinutes[s.id] ?? 0}
-                  goal={s.weeklyGoalMinutes}
-                  status={weekStatus}
-                />
-              ) : null}
+                ) : null}
               </div>
               {tasksExpanded && <SubjectTasks subjectId={s.id} />}
             </div>

@@ -150,11 +150,17 @@ export function DemoTimer({ className }: { className?: string }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <span ref={clockRef} className="font-heading text-5xl tabular-nums leading-none">
+          <span
+            ref={clockRef}
+            className="font-heading text-5xl tabular-nums leading-none"
+          >
             {formatClock(reduced ? STATIC_REMAINING : DISPLAY_SECONDS)}
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="h-2 w-2 rounded-full" style={{ background: SUBJECT.color }} />
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: SUBJECT.color }}
+            />
             {SUBJECT.name}
           </span>
         </div>

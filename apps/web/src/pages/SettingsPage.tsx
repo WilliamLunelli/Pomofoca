@@ -404,7 +404,9 @@ export function SettingsPage() {
                   className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
                   style={{
                     borderColor:
-                      prefs.density === d ? 'var(--color-accent)' : 'var(--color-divider)',
+                      prefs.density === d
+                        ? 'var(--color-accent)'
+                        : 'var(--color-divider)',
                   }}
                 >
                   {d === 'comfortable' ? 'Confortável' : 'Compacto'}
@@ -416,7 +418,9 @@ export function SettingsPage() {
           <div>
             <div className="mb-3 text-sm">
               Tamanho do texto
-              <div className="text-[11px] text-muted">Aumenta a leitura em todo o app</div>
+              <div className="text-[11px] text-muted">
+                Aumenta a leitura em todo o app
+              </div>
             </div>
             <div className="flex gap-4">
               {(['default', 'large', 'xlarge'] as const).map((f) => (
@@ -426,7 +430,9 @@ export function SettingsPage() {
                   className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
                   style={{
                     borderColor:
-                      prefs.fontSize === f ? 'var(--color-accent)' : 'var(--color-divider)',
+                      prefs.fontSize === f
+                        ? 'var(--color-accent)'
+                        : 'var(--color-divider)',
                   }}
                 >
                   {f === 'default' ? 'Padrão' : f === 'large' ? 'Grande' : 'Extra grande'}
