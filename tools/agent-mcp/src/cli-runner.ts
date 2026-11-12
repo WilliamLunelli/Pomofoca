@@ -34,6 +34,11 @@ export interface CliRequest {
   prompt: string;
   policy: ToolPolicy;
   timeoutMs: number;
+  /**
+   * Prefixo (relativo a .agent-logs/) da transcrição ao vivo: o stdout do agy é gravado em
+   * `<prefixo>.<tentativa>.jsonl` À MEDIDA que chega, para o painel acompanhar.
+   */
+  transcriptBase?: string;
 }
 
 export interface CliResult {
@@ -43,6 +48,8 @@ export interface CliResult {
   steps: number;
   /** Avisos para o gestor (ex.: ações que o CLI negou por falta de permissão). */
   notes: string[];
+  /** Transcrições gravadas (relativas a .agent-logs/). */
+  transcripts?: string[];
 }
 
 type Parsed = Omit<CliResult, 'notes'> & { isError: boolean; notes?: string[] };
@@ -381,8 +388,13 @@ function exec(
   cwd: string,
   stdin: string,
   timeoutMs: number,
+  teeFile?: string,
 ): Promise<Proc> {
   return new Promise((resolve) => {
+    if (teeFile) {
+      fs.mkdirSync(path.dirname(teeFile), { recursive: true });
+      fs.writeFileSync(teeFile, '');
+    }
     const child = spawn(cmd, args, { cwd, env: cliEnv(), windowsHide: true });
     let stdout = '';
     let stderr = '';
@@ -391,7 +403,16 @@ function exec(
       timedOut = true;
       killTree(child.pid);
     }, timeoutMs);
-    child.stdout?.setEncoding('utf8').on('data', (d: string) => (stdout += d));
+    child.stdout?.setEncoding('utf8').on('data', (d: string) => {
+      stdout += d;
+      if (teeFile) {
+        try {
+          fs.appendFileSync(teeFile, d);
+        } catch {
+          /* transcrição é só para o painel; não derruba o worker */
+        }
+      }
+    });
     child.stderr?.setEncoding('utf8').on('data', (d: string) => (stderr += d));
     child.on('error', (e) => {
       clearTimeout(timer);
@@ -437,12 +458,20 @@ export async function runCli(req: CliRequest): Promise<CliResult> {
   }
 
   const deadline = Date.now() + req.timeoutMs;
+  const base = req.transcriptBase ?? path.join('agy', path.basename(tmp));
+  const transcripts: string[] = [];
   /** Uma execução do CLI: valida a saída e devolve o resultado parseado. */
   const once = async (runArgs: string[], input: string, attempt: number) => {
     const left = deadline - Date.now();
     if (left < 5_000)
       throw new Error(`timeout de ${Math.round(req.timeoutMs / 1000)}s no ${label}.`);
-    const r = await exec(cmd, [...prefix, ...runArgs], req.root, input, left);
+    let tee: string | undefined;
+    if (req.spec.provider === 'agy') {
+      const rel = `${base}.${attempt}.jsonl`;
+      transcripts.push(rel);
+      tee = path.join(logsDir(), rel);
+    }
+    const r = await exec(cmd, [...prefix, ...runArgs], req.root, input, left, tee);
     if (r.timedOut)
       throw new Error(`timeout de ${Math.round(req.timeoutMs / 1000)}s no ${label}.`);
     if (r.code === -1 && /ENOENT/.test(r.stderr)) {
@@ -454,14 +483,8 @@ export async function runCli(req: CliRequest): Promise<CliResult> {
     let stream: AgyStream | undefined;
     if (req.spec.provider === 'agy') {
       stream = parseAgyStream(r.stdout);
+      // A transcrição completa já foi gravada ao vivo (tee) em .agent-logs/<base>.<n>.jsonl.
       json = stream.envelope ?? lastJson(r.stderr);
-      // Transcrição completa (cada ferramenta e comando) para depuração; não vai ao gestor.
-      const logDir = path.join(logsDir(), 'agy');
-      fs.mkdirSync(logDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(logDir, `${path.basename(tmp)}.${attempt}.jsonl`),
-        r.stdout,
-      );
     } else {
       json = lastJson(r.stdout) ?? lastJson(r.stderr);
     }
@@ -537,7 +560,7 @@ export async function runCli(req: CliRequest): Promise<CliResult> {
     if (!result.text.trim() && r.stderr.trim()) {
       notes.push(`stderr do ${label}: ${r.stderr.trim().slice(-400)}`);
     }
-    return { ...result, notes: [...new Set(notes)] };
+    return { ...result, notes: [...new Set(notes)], transcripts };
   } finally {
     fs.rmSync(tmpFile, { force: true });
   }

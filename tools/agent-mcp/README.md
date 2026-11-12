@@ -89,6 +89,19 @@ O gestor recomendado é o `claude` (de preferência com `/model opus`), aberto n
 
 Exporte `AGENT_PROVIDER_MODE=api`, `ANTHROPIC_API_KEY` e `GOOGLE_GENERATIVE_AI_API_KEY` no `env` do `.mcp.json`.
 
+## Painel ao vivo
+
+```bash
+npm run painel        # dentro de tools/agent-mcp  →  http://127.0.0.1:4777
+```
+
+Página local que se atualiza a cada 2s e mostra:
+- **hierarquia:** o gestor e cada papel, com modelo, chamadas, tokens e tempo (Claude em laranja, Gemini em azul);
+- **por tarefa:** branch, worktree, barra de orçamento, último gate, e uma linha do tempo com cada delegação (a **instrução que o gestor mandou** e o **relatório que voltou**), cada gate e os workers **rodando agora**;
+- **passos do `agy`:** cada ferramenta e cada comando (ou negação), ao vivo durante a execução.
+
+Só lê `.agent-logs/`, nunca o código nem `.env`, e só escuta em `127.0.0.1`. Os dados vêm de `delegations.jsonl`, `reports.jsonl`, `gates.jsonl`, `running/` e `agy/`, gravados pelo próprio servidor. `PAINEL_PORT` muda a porta.
+
 ## Como o custo é controlado
 
 - O gestor recebe **relatórios curtos** (≤ 3.500 caracteres) + `git diff --stat`, nunca o diff inteiro nem logs de teste. Revisores/documentação é que leem o diff.

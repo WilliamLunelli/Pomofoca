@@ -14,7 +14,13 @@ import {
 import { changedPaths, enforceWritePolicy, isCliProvider, runCli } from './cli-runner.js';
 import { clip, diffStat, fullDiff } from './compress.js';
 import { buildTools, type ToolPolicy } from './fs-tools.js';
-import { budgetBlock, record } from './ledger.js';
+import {
+  attachReport,
+  budgetBlock,
+  clearRunning,
+  markRunning,
+  record,
+} from './ledger.js';
 import { resolveModel } from './models.js';
 import { systemPrompt } from './roles.js';
 import {
@@ -74,6 +80,8 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
   const spec = modelFor(a.role);
   const modelLabel = `${spec.provider}:${spec.model}`;
   const budgetKey = a.taskId ?? '_sem-tarefa';
+  const delegationId = `${started}-${a.role}-${Math.random().toString(36).slice(2, 7)}`;
+  const transcriptBase = `agy/${budgetKey}/${delegationId}`;
 
   try {
     if (NEEDS_TASK.includes(a.role) && !a.taskId) {
@@ -87,6 +95,17 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
 
     const blocked = budgetBlock(budgetKey);
     if (blocked) return { text: blocked, isError: true };
+
+    // Painel: a delegação aparece "em andamento" até terminar (ver finally).
+    markRunning({
+      id: delegationId,
+      startedAt: new Date(started).toISOString(),
+      taskId: budgetKey,
+      role: a.role,
+      model: modelLabel,
+      instruction: clip(a.instruction, 4000),
+      transcriptBase: spec.provider === 'agy' ? transcriptBase : undefined,
+    });
 
     // Revisores e documentação veem o diff completo; garanta que tudo esteja commitado antes.
     let prompt = `# Tarefa\n${a.instruction}`;
@@ -104,6 +123,7 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
     let inTok: number;
     let outTok: number;
     const notes: string[] = [];
+    let transcripts: string[] = [];
 
     if (isCliProvider(spec.provider)) {
       // Worktree limpo antes do CLI: a política pós-execução só desfaz o que ESTE worker fez.
@@ -117,8 +137,10 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
         prompt,
         policy,
         timeoutMs: WORKER_TIMEOUT_MS,
+        transcriptBase,
       });
       ({ text, steps, inputTokens: inTok, outputTokens: outTok } = r);
+      transcripts = r.transcripts ?? [];
       notes.push(...r.notes);
       if (meta) {
         const reverted = await enforceWritePolicy(meta.dir, policy);
@@ -161,6 +183,9 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       outputTokens: outTok,
       ms: Date.now() - started,
       ok: true,
+      id: delegationId,
+      instruction: clip(a.instruction, 4000),
+      transcripts,
     });
 
     let changes = '';
@@ -177,10 +202,9 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       '(o worker não produziu relatório final — provável limite de passos; veja o diffstat)';
     const extraNotes = notes.length ? `\n\n${notes.join('\n')}` : '';
     const header = `[${a.role} · ${modelLabel} · ${steps} passo(s) · ${inTok + outTok} tokens]`;
-    return {
-      text: `${header}\n${clip(body, MAX_REPORT_CHARS)}${extraNotes}${changes}`,
-      isError: false,
-    };
+    const reply = `${header}\n${clip(body, MAX_REPORT_CHARS)}${extraNotes}${changes}`;
+    attachReport(delegationId, reply);
+    return { text: reply, isError: false };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     record({
@@ -193,10 +217,14 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
       ms: Date.now() - started,
       ok: false,
       note: message.slice(0, 300),
+      id: delegationId,
+      instruction: clip(a.instruction, 4000),
     });
     return {
       text: `Falha ao delegar para ${a.role} (${modelLabel}): ${clip(message, 600)}`,
       isError: true,
     };
+  } finally {
+    clearRunning(delegationId);
   }
 }

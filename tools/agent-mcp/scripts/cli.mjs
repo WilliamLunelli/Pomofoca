@@ -241,6 +241,27 @@ ok('agy: execução encerrada por negação é retomada (--conversation) e entre
 }
 ok('agy: `..`, caminho absoluto, ~, .env e .agent-* são negados mesmo em comandos de leitura');
 
+// ---- 5d) registros do painel: instrução/relatório/transcrição ao vivo/em andamento/gate
+{
+  const logs = path.join(repo, '.agent-logs');
+  r = await run({ role: 'revisor', taskId: 'cli-x', instruction: 'Revise com foco X' });
+  assert.equal(r.isError, false, r.text);
+  const last = entries('cli-x').at(-1);
+  assert.equal(last.instruction, 'Revise com foco X');
+  assert.ok(last.id, 'delegação tem id');
+  assert.equal(last.transcripts.length, 1);
+  const transcript = fs.readFileSync(path.join(logs, last.transcripts[0]), 'utf8');
+  assert.match(transcript, /"event":"result"/, 'transcrição do agy gravada (tee)');
+  const reports = fs.readFileSync(path.join(logs, 'reports.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(reports.at(-1).id, last.id);
+  assert.match(reports.at(-1).report, /RESUMO: feito pelo CLI simulado/);
+  const running = fs.existsSync(path.join(logs, 'running')) ? fs.readdirSync(path.join(logs, 'running')) : [];
+  assert.deepEqual(running, [], 'nada fica "em andamento" depois de terminar');
+  // ledger continua somando só tokens (reports.jsonl é separado)
+  assert.ok(Number.isFinite(entries('cli-x').reduce((s, e) => s + e.inputTokens + e.outputTokens, 0)));
+}
+ok('painel: ledger guarda instrução/id/transcrição; relatório em reports.jsonl; "em andamento" limpo');
+
 // ---- 6) parse tolerante
 assert.deepEqual(lastJson('warn {x}\n{"a":1}'), { a: 1 });
 assert.equal(lastJson('nada aqui'), undefined);

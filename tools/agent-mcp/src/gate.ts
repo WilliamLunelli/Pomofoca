@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { GATE_CHECKS, type GateCheck } from './config.js';
 import { extractFailures } from './compress.js';
+import { recordGate } from './ledger.js';
 import { logsDir, resolveInside, run } from './workspace.js';
 
 export interface CheckResult {
@@ -92,5 +93,9 @@ export async function runGate(
     );
   const results: CheckResult[] = [];
   for (const c of checks) results.push(await runCheck(taskId, worktree, c));
+  recordGate(
+    taskId,
+    results.map(({ name, status, ms }) => ({ name, status, ms })),
+  );
   return formatResults(results);
 }

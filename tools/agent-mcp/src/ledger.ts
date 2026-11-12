@@ -17,9 +17,63 @@ export interface LedgerEntry {
   ms: number;
   ok: boolean;
   note?: string;
+  /** Identificador da delegação (liga ledger, "em andamento" e transcrições). */
+  id?: string;
+  /** O que o gestor mandou (cortado) — para o painel mostrar a passagem de bastão. */
+  instruction?: string;
+  /** O que voltou ao gestor (cortado). */
+  report?: string;
+  /** Transcrições do CLI (relativas a .agent-logs/), quando houver. */
+  transcripts?: string[];
+}
+
+/** Delegação em execução agora (arquivo some quando termina). Lido pelo painel. */
+export interface RunningEntry {
+  id: string;
+  startedAt: string;
+  taskId: string;
+  role: string;
+  model: string;
+  instruction: string;
+  /** Prefixo da transcrição ao vivo (relativo a .agent-logs/), se o CLI gravar. */
+  transcriptBase?: string;
 }
 
 const file = () => path.join(logsDir(), 'delegations.jsonl');
+const runningDir = () => path.join(logsDir(), 'running');
+
+export function markRunning(entry: RunningEntry): void {
+  fs.mkdirSync(runningDir(), { recursive: true });
+  fs.writeFileSync(path.join(runningDir(), `${entry.id}.json`), JSON.stringify(entry));
+}
+
+export function clearRunning(id: string): void {
+  fs.rmSync(path.join(runningDir(), `${id}.json`), { force: true });
+}
+
+/**
+ * Relatório que voltou ao gestor, ligado à delegação pelo id. Fica num arquivo próprio
+ * (reports.jsonl) para não misturar linhas sem tokens no ledger usado pelo orçamento.
+ */
+export function attachReport(id: string, report: string): void {
+  fs.mkdirSync(logsDir(), { recursive: true });
+  fs.appendFileSync(
+    path.join(logsDir(), 'reports.jsonl'),
+    JSON.stringify({ id, report: report.slice(0, 8000) }) + '\n',
+  );
+}
+
+/** Resultado de cada gate (sem LLM), para o painel. */
+export function recordGate(
+  taskId: string,
+  results: { name: string; status: string; ms: number }[],
+): void {
+  fs.mkdirSync(logsDir(), { recursive: true });
+  fs.appendFileSync(
+    path.join(logsDir(), 'gates.jsonl'),
+    JSON.stringify({ ts: new Date().toISOString(), taskId, results }) + '\n',
+  );
+}
 
 export function record(entry: LedgerEntry): void {
   fs.mkdirSync(logsDir(), { recursive: true });
