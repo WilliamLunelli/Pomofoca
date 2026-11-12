@@ -23,6 +23,29 @@ const SPARKLES = [
   { x: 50, y: 2, s: 0.8, delay: 300, light: false },
 ];
 
+// Olho de mascote: bola escura + brilho grande (canto superior) + brilho pequeno (canto oposto inferior)
+function Eye({
+  cx,
+  cy,
+  r = 5.5,
+  big = 1.9,
+  small = 0.9,
+}: {
+  cx: number;
+  cy: number;
+  r?: number;
+  big?: number;
+  small?: number;
+}) {
+  return (
+    <>
+      <circle cx={cx} cy={cy} r={r} style={{ fill: 'var(--foki-eye)' }} />
+      <circle cx={cx + 2} cy={cy - 2.2} r={big} style={{ fill: 'var(--foki-shine)' }} />
+      <circle cx={cx - 1.8} cy={cy + 2.2} r={small} style={{ fill: 'var(--foki-shine)' }} />
+    </>
+  );
+}
+
 /**
  * Mascote Foki (foca) - componente reativo, nao conversacional. So muda de
  * expressao/pose conforme a prop `state`; nao guarda nenhuma logica de app.
@@ -71,7 +94,6 @@ export function Foki({ state, size = 64, className }: FokiProps) {
   }, [reduced, state]);
 
   const on = (...s: FokiState[]) => s.includes(state);
-  const gBody = `foki-body-${uid}`;
   const gFace = `foki-face-${uid}`;
   const gFlip = `foki-flip-${uid}`;
 
@@ -89,11 +111,7 @@ export function Foki({ state, size = 64, className }: FokiProps) {
         style={{ overflow: 'visible' }}
       >
         <defs>
-          <linearGradient id={gBody} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: 'var(--foki-back)' }} />
-            <stop offset="1" style={{ stopColor: 'var(--foki-mid)' }} />
-          </linearGradient>
-          <radialGradient id={gFace} cx="0.4" cy="0.3" r="0.8">
+          <radialGradient id={gFace} cx="0.4" cy="0.25" r="0.85">
             <stop offset="0" style={{ stopColor: 'var(--foki-light)' }} />
             <stop offset="1" style={{ stopColor: 'var(--foki-mid)' }} />
           </radialGradient>
@@ -114,27 +132,38 @@ export function Foki({ state, size = 64, className }: FokiProps) {
         />
 
         <g className="foki-char">
-          {/* corpo (squash/stretch proprio) */}
+          {/* corpo unico em gota (cabeca e corpo fundidos) + cauda traseira em V */}
           <g className="foki-body">
-            <ellipse cx="50" cy="69" rx="31" ry="24" fill={`url(#${gBody})`} {...OUTLINE} />
+            <path
+              d="M68 86 L84 80 Q89 79 88.5 84 L80.5 87.5 L89 91.5 Q90 94.5 85 93.5 L68 91Z"
+              fill={`url(#${gFlip})`}
+              {...OUTLINE}
+              strokeLinejoin="round"
+            />
+            <path
+              d="M50 27 C66 27 76 38 76 51 C76 58 82 64 82 74 C82 84 68 91 50 91 C32 91 18 84 18 74 C18 64 24 58 24 51 C24 38 34 27 50 27Z"
+              fill={`url(#${gFace})`}
+              {...OUTLINE}
+              strokeLinejoin="round"
+            />
             <ellipse
               cx="50"
-              cy="76"
+              cy="77"
               rx="19"
-              ry="14"
+              ry="12"
               style={{ fill: 'var(--foki-light)' }}
               opacity="0.75"
             />
           </g>
 
-          {/* nadadeiras */}
+          {/* nadadeiras dianteiras */}
           <g className="foki-flipper foki-flipper--l">
             <ellipse
               cx="21"
-              cy="72"
+              cy="74"
               rx="9"
               ry="5.5"
-              transform="rotate(-25 21 72)"
+              transform="rotate(-25 21 74)"
               fill={`url(#${gFlip})`}
               {...OUTLINE}
             />
@@ -142,19 +171,18 @@ export function Foki({ state, size = 64, className }: FokiProps) {
           <g className="foki-flipper foki-flipper--r">
             <ellipse
               cx="79"
-              cy="72"
+              cy="74"
               rx="9"
               ry="5.5"
-              transform="rotate(25 79 72)"
+              transform="rotate(25 79 74)"
               fill={`url(#${gFlip})`}
               {...OUTLINE}
             />
           </g>
 
-          {/* cabeca: inclinacao/balanco no externo, acompanhamento da respiracao no interno */}
+          {/* rosto: inclinacao/balanco no externo, acompanhamento da respiracao no interno */}
           <g className="foki-head-tilt">
             <g className="foki-head">
-              <ellipse cx="50" cy="50" rx="25" ry="22" fill={`url(#${gFace})`} {...OUTLINE} />
               {/* brilho especular */}
               <ellipse
                 cx="40"
@@ -168,8 +196,8 @@ export function Foki({ state, size = 64, className }: FokiProps) {
 
               {/* bochechas */}
               <g className="foki-expr" data-on={!on('sad')}>
-                <circle cx="30" cy="57" r="4.2" fill={CHEEK} />
-                <circle cx="70" cy="57" r="4.2" fill={CHEEK} />
+                <circle cx="29" cy="59" r="4.2" fill={CHEEK} />
+                <circle cx="71" cy="59" r="4.2" fill={CHEEK} />
               </g>
 
               {/* focinho */}
@@ -213,7 +241,7 @@ export function Foki({ state, size = 64, className }: FokiProps) {
               </g>
               <g className="foki-expr" data-on={on('sad')}>
                 <path
-                  d="M46.5 63.5 q3.5 -3.5 7 0"
+                  d="M46.5 63.5 q3.5 -2.5 7 0"
                   style={{ stroke: 'var(--foki-eye)' }}
                   strokeWidth="1.5"
                   strokeLinecap="round"
@@ -234,43 +262,57 @@ export function Foki({ state, size = 64, className }: FokiProps) {
               {/* olhos abertos (piscam via ref) */}
               <g ref={blinkRef} className="foki-blinkable">
                 <g className="foki-expr" data-on={on('idle')}>
-                  <circle cx="40" cy="49" r="3.5" style={{ fill: 'var(--foki-eye)' }} />
-                  <circle cx="60" cy="49" r="3.5" style={{ fill: 'var(--foki-eye)' }} />
-                  <circle cx="41.2" cy="47.8" r="1.1" style={{ fill: 'var(--foki-shine)' }} />
-                  <circle cx="61.2" cy="47.8" r="1.1" style={{ fill: 'var(--foki-shine)' }} />
+                  <Eye cx={38} cy={49} />
+                  <Eye cx={62} cy={49} />
                 </g>
                 <g className="foki-expr" data-on={on('curious')}>
-                  <circle cx="40" cy="49" r="4.2" style={{ fill: 'var(--foki-shine)' }} />
-                  <circle cx="60" cy="49" r="4.2" style={{ fill: 'var(--foki-shine)' }} />
+                  <circle
+                    cx="38"
+                    cy="49"
+                    r="6.3"
+                    style={{ fill: 'var(--foki-shine)' }}
+                    stroke="var(--foki-outline)"
+                    strokeWidth="0.8"
+                    strokeOpacity="0.5"
+                  />
+                  <circle
+                    cx="62"
+                    cy="49"
+                    r="6.3"
+                    style={{ fill: 'var(--foki-shine)' }}
+                    stroke="var(--foki-outline)"
+                    strokeWidth="0.8"
+                    strokeOpacity="0.5"
+                  />
                   <g className="foki-look">
-                    <circle cx="40" cy="49" r="2.6" style={{ fill: 'var(--foki-eye)' }} />
-                    <circle cx="60" cy="49" r="2.6" style={{ fill: 'var(--foki-eye)' }} />
+                    <Eye cx={38} cy={49} r={4.4} big={1.6} small={0.8} />
+                    <Eye cx={62} cy={49} r={4.4} big={1.6} small={0.8} />
                   </g>
                 </g>
               </g>
 
               {/* olhos concentrados (semicerrados) */}
               <g className="foki-expr" data-on={on('focused')}>
-                <path d="M36.5 49 a3.5 3.5 0 0 0 7 0z" style={{ fill: 'var(--foki-eye)' }} />
-                <path d="M56.5 49 a3.5 3.5 0 0 0 7 0z" style={{ fill: 'var(--foki-eye)' }} />
+                <path d="M32.5 49 a5.5 5.5 0 0 0 11 0z" style={{ fill: 'var(--foki-eye)' }} />
+                <path d="M56.5 49 a5.5 5.5 0 0 0 11 0z" style={{ fill: 'var(--foki-eye)' }} />
+                <circle cx="40" cy="51.8" r="1.2" style={{ fill: 'var(--foki-shine)' }} />
+                <circle cx="64" cy="51.8" r="1.2" style={{ fill: 'var(--foki-shine)' }} />
                 <path
-                  d="M35.5 49 h9 M55.5 49 h9"
+                  d="M31.5 49 h13 M55.5 49 h13"
                   style={{ stroke: 'var(--foki-eye)' }}
                   strokeWidth="1.6"
                   strokeLinecap="round"
                 />
               </g>
 
-              {/* olhos tristes (caidos) + sobrancelhas */}
+              {/* olhos tristes (pidoes) + sobrancelhas com ponta interna mais alta */}
               <g className="foki-expr" data-on={on('sad')}>
-                <circle cx="40" cy="51.5" r="3.2" style={{ fill: 'var(--foki-eye)' }} />
-                <circle cx="60" cy="51.5" r="3.2" style={{ fill: 'var(--foki-eye)' }} />
-                <circle cx="41" cy="50.4" r="1" style={{ fill: 'var(--foki-shine)' }} />
-                <circle cx="61" cy="50.4" r="1" style={{ fill: 'var(--foki-shine)' }} />
+                <Eye cx={38} cy={51.5} big={2.3} small={1} />
+                <Eye cx={62} cy={51.5} big={2.3} small={1} />
                 <path
-                  d="M35 45.5 q5 -1 9 2 M65 45.5 q-5 -1 -9 2"
+                  d="M31 45.5 Q37 43 44 40.5 M69 45.5 Q63 43 56 40.5"
                   style={{ stroke: 'var(--foki-eye)' }}
-                  strokeWidth="1.4"
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   fill="none"
                 />
@@ -279,9 +321,9 @@ export function Foki({ state, size = 64, className }: FokiProps) {
               {/* olhos felizes (arco pra cima) */}
               <g className="foki-expr" data-on={on('celebrating')}>
                 <path
-                  d="M36 50 q4 -5 8 0 M56 50 q4 -5 8 0"
+                  d="M33 51 q5 -6 10 0 M57 51 q5 -6 10 0"
                   style={{ stroke: 'var(--foki-eye)' }}
-                  strokeWidth="2"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                   fill="none"
                 />
@@ -290,7 +332,7 @@ export function Foki({ state, size = 64, className }: FokiProps) {
               {/* olhos fechados (dormindo) */}
               <g className="foki-expr" data-on={on('sleeping')}>
                 <path
-                  d="M36 49 q4 3.5 8 0 M56 49 q4 3.5 8 0"
+                  d="M33 49 q5 4 10 0 M57 49 q5 4 10 0"
                   style={{ stroke: 'var(--foki-eye)' }}
                   strokeWidth="1.8"
                   strokeLinecap="round"
