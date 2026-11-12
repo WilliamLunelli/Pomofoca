@@ -119,6 +119,7 @@ export async function delegate(a: DelegateArgs): Promise<DelegateResult> {
         timeoutMs: WORKER_TIMEOUT_MS,
       });
       ({ text, steps, inputTokens: inTok, outputTokens: outTok } = r);
+      notes.push(...r.notes);
       if (meta) {
         const reverted = await enforceWritePolicy(meta.dir, policy);
         if (reverted.length) {

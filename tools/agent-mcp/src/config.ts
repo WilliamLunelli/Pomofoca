@@ -6,12 +6,13 @@
  *
  * Dois modos (AGENT_PROVIDER_MODE):
  *   - "cli" (padrão): workers rodam pelos CLIs oficiais logados na SUA assinatura,
- *     sem chave de API: `claude -p` (Claude Pro/Max) e `gemini -p` (login Google / AI Pro).
+ *     sem chave de API: `claude -p` (Claude Pro/Max) e `agy -p` (Antigravity CLI, login Google /
+ *     AI Pro; substitui o Gemini CLI, que parou de aceitar contas pessoais em 18/06/2026).
  *   - "api": workers rodam pelo AI SDK com ANTHROPIC_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY.
  *
  * Para trocar o modelo de um papel sem mexer no código, use variáveis de ambiente:
  *   AGENT_MODEL_PROGRAMADOR=claude-cli:opus
- *   AGENT_MODEL_REVISOR=gemini-cli:pro
+ *   AGENT_MODEL_REVISOR=agy:claude-sonnet-4-6   (Claude pela cota do Google)
  *   AGENT_MODEL_TESTADOR=anthropic:claude-sonnet-5-5   (API)
  */
 import { execFileSync } from 'node:child_process';
@@ -27,7 +28,7 @@ export const ROLE_NAMES = [
 ] as const;
 export type Role = (typeof ROLE_NAMES)[number];
 
-export const PROVIDERS = ['anthropic', 'google', 'claude-cli', 'gemini-cli'] as const;
+export const PROVIDERS = ['anthropic', 'google', 'claude-cli', 'agy'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export interface ModelSpec {
   provider: Provider;
@@ -43,10 +44,10 @@ const SONNET = env('CLAUDE_SONNET_MODEL', 'claude-sonnet-5-5');
 const GEMINI_PRO = env('GEMINI_PRO_MODEL', 'gemini-3.1-pro-preview');
 const GEMINI_FLASH = env('GEMINI_FLASH_MODEL', 'gemini-3.8-flash');
 
-// Nos CLIs, aliases ("sonnet", "pro", "flash") apontam sempre para o modelo atual do seu plano.
+// Claude CLI: alias "sonnet" acompanha o modelo atual do plano. agy: IDs de `agy models`.
 const CLAUDE_CLI = env('CLAUDE_CLI_MODEL', 'sonnet');
-const GEMINI_CLI_PRO = env('GEMINI_CLI_PRO_MODEL', 'pro');
-const GEMINI_CLI_FLASH = env('GEMINI_CLI_FLASH_MODEL', 'flash');
+const AGY_STRONG = env('AGY_STRONG_MODEL', 'gemini-3.8-flash-high');
+const AGY_FAST = env('AGY_FAST_MODEL', 'gemini-3.8-flash-medium');
 
 const API_MODELS: Record<Role, ModelSpec> = {
   explorador: { provider: 'google', model: GEMINI_FLASH }, // contexto grande, barato
@@ -60,13 +61,13 @@ const API_MODELS: Record<Role, ModelSpec> = {
 
 // Mesma divisão de trabalho, mas pelas assinaturas (sem API).
 const CLI_MODELS: Record<Role, ModelSpec> = {
-  explorador: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
+  explorador: { provider: 'agy', model: AGY_FAST },
   programador: { provider: 'claude-cli', model: CLAUDE_CLI },
-  testador: { provider: 'gemini-cli', model: GEMINI_CLI_PRO },
-  revisor: { provider: 'gemini-cli', model: GEMINI_CLI_PRO },
+  testador: { provider: 'agy', model: AGY_STRONG },
+  revisor: { provider: 'agy', model: AGY_STRONG },
   seguranca: { provider: 'claude-cli', model: CLAUDE_CLI },
-  triagem: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
-  documentacao: { provider: 'gemini-cli', model: GEMINI_CLI_FLASH },
+  triagem: { provider: 'agy', model: AGY_FAST },
+  documentacao: { provider: 'agy', model: AGY_FAST },
 };
 
 export function providerMode(): 'cli' | 'api' {
@@ -103,8 +104,14 @@ export const ROLE_LIMITS: Record<Role, { maxSteps: number; maxOutputTokens: numb
 };
 
 /** Orçamento por tarefa. Estourou: o servidor recusa novas delegações e avisa o gestor. */
+// No modo cli o limite é de cota da assinatura, não de dinheiro, e os CLIs contam leitura de
+// cache como entrada (uma chamada trivial do `claude -p` já soma ~22k tokens): 600k travaria
+// qualquer tarefa real. Medido: worker do agy ~35-80k tokens por chamada.
 export const MAX_TOKENS_PER_TASK = Number(
-  process.env.AGENT_MAX_TOKENS_PER_TASK ?? 600_000,
+  process.env.AGENT_MAX_TOKENS_PER_TASK ??
+    ((process.env.AGENT_PROVIDER_MODE?.trim().toLowerCase() || 'cli') === 'cli'
+      ? 4_000_000
+      : 600_000),
 );
 export const MAX_DELEGATIONS_PER_TASK = Number(
   process.env.AGENT_MAX_DELEGATIONS_PER_TASK ?? 14,

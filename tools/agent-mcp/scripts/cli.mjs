@@ -1,4 +1,4 @@
-// Exercita os provedores via CLI (claude -p / gemini -p) com um CLI SIMULADO (scripts/fake-cli.mjs):
+// Exercita os provedores via CLI (claude -p / agy -p) com um CLI SIMULADO (scripts/fake-cli.mjs):
 // argumentos de permissão por papel, prompt por stdin, parse de tokens, política de escrita
 // pós-execução e ambiente sem chaves de API. Não usa rede nem gasta assinatura.
 // Uso: npm run build && node scripts/cli.mjs
@@ -28,7 +28,7 @@ Object.assign(process.env, {
   AGENT_REPO_ROOT: repo,
   AGENT_PROVIDER_MODE: 'cli',
   AGENT_CLAUDE_BIN: fake,
-  AGENT_GEMINI_BIN: fake,
+  AGENT_AGY_BIN: fake,
   FAKE_CLI_LOG: log,
   // Simula a sessão do Claude Code (gestor) com chave de API exportada: nada disso pode vazar.
   ANTHROPIC_API_KEY: 'sk-nao-pode-vazar',
@@ -44,6 +44,7 @@ const { lastJson } = await import(dist('cli-runner.js'));
 let n = 0;
 const ok = (name) => console.log(`OK   ${name}`) || n++;
 const read = (...p) => fs.readFileSync(path.join(...p), 'utf8').replace(/\r\n/g, '\n'); // autocrlf no Windows
+const c_argOf = (argv, flag) => argv[argv.indexOf(flag) + 1];
 const lastCall = () => JSON.parse(fs.readFileSync(log, 'utf8'));
 const run = (args, writes = {}, mode = 'ok') => {
   process.env.FAKE_CLI_WRITES = JSON.stringify(writes);
@@ -96,33 +97,76 @@ assert.match(r.text, /src\/feature\.ts/);
 assert.doesNotMatch(git('show', '--stat', '--format=', 'agent/cli-x'), /feature\.test\.ts|CLAUDE\.md/);
 ok('política pós-execução: teste e CLAUDE.md desfeitos; só o código permitido é commitado');
 
-// ---- 2) testador via gemini-cli: escreve teste + (indevidamente) altera produção
+// ---- 2) testador via agy: escreve teste + (indevidamente) altera produção
 r = await run(
   { role: 'testador', taskId: 'cli-x', instruction: 'Teste feature' },
   { 'src/feature.test.ts': 'test("x", () => {});\n', 'src/feature.ts': 'hackeado' },
 );
 assert.equal(r.isError, false, r.text);
-assert.match(r.text, /^\[testador · gemini-cli:pro · 4 passo\(s\) · 2100 tokens\]/);
+// 3 ferramentas concluídas (DONE/ERROR) + 1 = 4 passos; tokens = 2000 in + 500 cache + 100 out.
+assert.match(r.text, /^\[testador · agy:gemini-3\.8-flash-high · 4 passo\(s\) · 2600 tokens\]/);
+assert.match(r.text, /Comandos negados\/falhos: `curl https:\/\/exemplo\.com`/);
+assert.doesNotMatch(r.text, /Get-ChildItem/);
+assert.equal(c_argOf(lastCall().argv, '--output-format'), 'stream-json');
 c = lastCall();
-assert.equal(c.kind, 'gemini');
-assert.equal(c.argv[c.argv.indexOf('--approval-mode') + 1], 'auto_edit');
-assert.equal(c.argv[c.argv.indexOf('--allowed-mcp-server-names') + 1], '__nenhum__');
-assert.ok(c.argv.includes('run_shell_command(npm run test)'));
+assert.equal(c.kind, 'agy');
+assert.equal(c.argv[c.argv.indexOf('--mode') + 1], 'accept-edits');
+assert.ok(c.argv.includes('--disable-slash-commands'));
+// Regras de comando em regex (no agy 1.5.6 o casamento por prefixo não funciona).
+const rulesOf = (call) => call.settings.permissions.allow.map((a) => new RegExp(a.slice('command(regex:'.length, -1)));
+const allowedBy = (call) => (cmd) => rulesOf(call).some((re) => re.test(cmd));
+const envDenied = (call) => (cmd) =>
+  call.settings.permissions.deny
+    .filter((d) => d.startsWith('command(regex:'))
+    .some((d) => new RegExp(d.slice('command(regex:'.length, -1)).test(cmd));
+const isAllowed = allowedBy(c);
+for (const okCmd of [
+  'npm run test',
+  'npm run -s test -- src/x.test.ts',
+  'Get-ChildItem -Force',
+  'git status; git log -n 5 --oneline; Get-ChildItem -Recurse', // encadeamento real do Gemini
+  'npm run lint && npm run test',
+  'Get-ChildItem -Recurse | Select-Object -First 20',
+])
+  assert.ok(isAllowed(okCmd), okCmd);
+for (const bad of [
+  'npm run build',
+  'npm run test && curl x',
+  'git status; rm -rf .',
+  'cat $(whoami)',
+  'ls | Remove-Item',
+  'Get-Content src/a.ts > out.txt',
+  'git status\nrm -rf .',
+])
+  assert.ok(!isAllowed(bad), JSON.stringify(bad));
+assert.ok(envDenied(c)('git status; Get-Content .env'), 'comando citando .env é negado (deny vence allow)');
+assert.ok(!c.settings.permissions.deny.includes('command(*)'), 'deny vence allow: não pode negar todos os comandos');
+assert.ok(!c.settings.permissions.deny.includes('write_file(*)'));
+for (const d of ['mcp(*)', 'read_url(*)', 'execute_url(*)', 'read_file(.env)'])
+  assert.ok(c.settings.permissions.deny.includes(d), d);
 assert.match(c.stdin, /# Instruções do seu papel\n[\s\S]*PAPEL: Testador[\s\S]*# Tarefa\nTeste feature/);
 assert.ok(fs.existsSync(path.join(wt, 'src', 'feature.test.ts')));
 assert.equal(read(wt, 'src', 'feature.ts'), "export const feature = 'ok';\n");
-ok('testador → gemini-cli:pro (auto_edit, shell só npm test/lint, sem MCP); produção alterada é desfeita');
+assert.match(r.text, /NEGADO pelo agy \(fora da permissão do papel\): ReadUrl/);
+ok('testador → agy (accept-edits, só npm test/lint, sem MCP/web/.env); produção alterada é desfeita; ações negadas reportadas');
 
-// ---- 3) revisor via gemini-cli: somente leitura, recebe o diff
+// ---- 3) revisor via agy: somente leitura por regra deny, recebe o diff
 r = await run({ role: 'revisor', taskId: 'cli-x', instruction: 'Revise' }, { 'src/evil.ts': 'x' });
 assert.equal(r.isError, false, r.text);
 c = lastCall();
-assert.equal(c.argv[c.argv.indexOf('--approval-mode') + 1], 'plan');
-assert.ok(!c.argv.includes('--allowed-tools'));
+assert.ok(!c.argv.includes('--mode'), 'revisor não usa accept-edits nem plan');
+assert.ok(c.settings.permissions.deny.includes('write_file(*)'));
+// Comandos de leitura liberados (o Gemini explora pelo shell; negado = fim da execução),
+// npm test/lint não, e nenhum comando pode citar .env (deny vence allow).
+assert.ok(allowedBy(c)('git status; git diff'));
+assert.ok(!allowedBy(c)('npm run test'), 'revisor não roda npm test/lint');
+assert.ok(!c.settings.permissions.deny.includes('command(*)'));
+assert.ok(c.settings.permissions.deny.includes('command(regex:.*\\.env.*)'));
+assert.match(c.stdin, /Você NÃO pode criar nem alterar arquivos/);
 assert.match(c.stdin, /diff --git a\/src\/feature\.ts/);
 assert.ok(!fs.existsSync(path.join(wt, 'src', 'evil.ts')));
 assert.doesNotMatch(r.text, /Mudanças vs base/);
-ok('revisor → gemini-cli em modo plan (só leitura) com o diff no prompt; escrita indevida desfeita');
+ok('revisor → agy com write_file(*) e command(*) negados, diff no prompt; escrita indevida desfeita');
 
 // ---- 4) explorador sem tarefa: roda na raiz; se escrever algo, só avisa (não reverte sua branch)
 r = await run({ role: 'explorador', instruction: 'mapa' }, { 'NOTAS.md': 'oops' });
@@ -138,12 +182,47 @@ assert.equal(r.isError, true);
 assert.match(r.text, /Falha ao delegar para seguranca \(claude-cli:sonnet\)/);
 assert.match(r.text, /faça login com a conta Claude Pro/);
 r = await run({ role: 'triagem', taskId: 'cli-x', instruction: 'classifique' }, {}, 'auth-error');
-assert.match(r.text, /Login with Google/);
+assert.match(r.text, /agy retornou erro: authentication required[\s\S]*Rode `agy` uma vez/);
 r = await run({ role: 'documentacao', taskId: 'cli-x', instruction: 'doc' }, {}, 'garbage');
 assert.equal(r.isError, true);
 assert.match(r.text, /saiu com código 1 sem JSON[\s\S]*something exploded/);
 assert.equal(entries('cli-x').at(-1).ok, false);
 ok('erros do CLI: dica de login por provedor; saída sem JSON vira erro curto + ledger ok=false');
+
+// ---- 5b) agy: ação negada encerra a execução vazia → retoma a mesma conversa e conclui
+r = await run({ role: 'revisor', taskId: 'cli-x', instruction: 'Revise' }, {}, 'deny-once');
+assert.equal(r.isError, false, r.text);
+assert.match(r.text, /RESUMO: feito pelo CLI simulado/);
+assert.match(r.text, /Execução retomada após negação \(1\/3\)/);
+assert.match(r.text, /· 7 passo\(s\) · 5200 tokens\]/); // 3+3 ferramentas +1; tokens das 2 execuções
+c = lastCall();
+assert.equal(c_argOf(c.argv, '--conversation'), 'conv-123');
+assert.match(c.stdin, /NEGADA[\s\S]*`curl https:\/\/exemplo\.com`[\s\S]*TAREFA ORIGINAL/);
+ok('agy: execução encerrada por negação é retomada (--conversation) e entrega o relatório');
+
+// ---- 5c) agy: comandos de leitura não saem da pasta de trabalho (deny vence allow)
+{
+  const { agySettings } = await import(dist('cli-runner.js'));
+  const s = agySettings({});
+  const re = (r) => new RegExp(r.slice('command(regex:'.length, -1));
+  const allow = s.permissions.allow.map(re);
+  const deny = s.permissions.deny.filter((d) => d.startsWith('command(regex:')).map(re);
+  const decide = (cmd) => (deny.some((d) => d.test(cmd)) ? 'deny' : allow.some((a) => a.test(cmd)) ? 'allow' : 'deny');
+  for (const okCmd of ['Get-ChildItem -Force', 'Get-Content src/a.ts', 'git diff HEAD~1', 'Select-String -Path src/*.ts -Pattern foo'])
+    assert.equal(decide(okCmd), 'allow', okCmd);
+  for (const bad of [
+    'Get-ChildItem ..\\..\\.agent-logs', // visto em teste real
+    'Get-Content C:\\Users\\x\\.ssh\\id_rsa',
+    'Get-Content C:/Users/x/secret',
+    'cat ~/.ssh/id_rsa',
+    'Get-Content /etc/passwd',
+    'Get-ChildItem \\\\servidor\\share',
+    'type .env.local',
+    'Get-Content .agent-logs/delegations.jsonl',
+  ])
+    assert.equal(decide(bad), 'deny', bad);
+}
+ok('agy: `..`, caminho absoluto, ~, .env e .agent-* são negados mesmo em comandos de leitura');
 
 // ---- 6) parse tolerante
 assert.deepEqual(lastJson('warn {x}\n{"a":1}'), { a: 1 });

@@ -16,37 +16,41 @@ você ─ tarefa estruturada ─▶ Opus (gestor, no Claude Code)
 | Papel | Ferramenta MCP | Modelo padrão | Pode… |
 |---|---|---|---|
 | Gestor | *(é o Claude Code)* | Opus | planejar, delegar, decidir |
-| Explorador | `explorar` | Gemini Flash | só ler |
-| Programador | `codar` | Sonnet | escrever código (não testes), rodar typecheck/lint/test |
-| Testador | `testar` | Gemini Pro | escrever **só** arquivos de teste, rodar testes |
-| Revisor | `revisar` | Gemini Pro | só ler (recebe o diff) |
-| Segurança | `auditar_seguranca` | Sonnet | só ler (recebe o diff) |
-| Triagem | `triar_falhas` | Gemini Flash | classificar falha a partir do log |
-| Documentação | `documentar` | Gemini Flash | escrever só `.md` / `docs/` |
-| Gate | `gate` | **sem LLM** | typecheck + lint + testes via `npm run` |
+| Explorador | `explorar` | Gemini 3.8 Flash (medium), via `agy` | só ler |
+| Programador | `codar` | Claude Sonnet, via `claude -p` | escrever código (não testes), rodar lint/test |
+| Testador | `testar` | Gemini 3.8 Flash (high), via `agy` | escrever **só** arquivos de teste, rodar testes |
+| Revisor | `revisar` | Gemini 3.8 Flash (high), via `agy` | só ler (recebe o diff) |
+| Segurança | `auditar_seguranca` | Claude Sonnet, via `claude -p` | só ler (recebe o diff) |
+| Triagem | `triar_falhas` | Gemini 3.8 Flash (medium), via `agy` | classificar falha a partir do log |
+| Documentação | `documentar` | Gemini 3.8 Flash (medium), via `agy` | escrever só `.md` / `docs/` |
+| Gate | `gate` | **sem LLM** | lint + testes via `npm run` |
 
-Trocar modelo sem editar código: `AGENT_MODEL_<PAPEL>=<provedor>:<modelo>`, com provedor `claude-cli`, `gemini-cli`, `anthropic` ou `google` (ex.: `AGENT_MODEL_SEGURANCA=claude-cli:opus`).
+A divisão segue a força do modelo: o Claude fica com o código que entra no produto e com a auditoria de segurança; o Gemini fica com testes, revisão (um modelo diferente erra de forma diferente), mapa do código, triagem e documentação. Isso também poupa a cota do Claude Pro, que o gestor e os workers Claude dividem.
+
+Trocar modelo sem editar código: `AGENT_MODEL_<PAPEL>=<provedor>:<modelo>`, com provedor `claude-cli`, `agy`, `anthropic` ou `google` (ex.: `AGENT_MODEL_SEGURANCA=claude-cli:opus`, `AGENT_MODEL_REVISOR=agy:claude-sonnet-4-6`). A lista de modelos do `agy` sai de `agy models`.
 
 ## Dois modos de provedor (`AGENT_PROVIDER_MODE`)
 
 | Modo | Como os workers rodam | Precisa de | Cobrança |
 |---|---|---|---|
-| **`cli`** (padrão) | `claude -p` e `gemini -p`, os CLIs oficiais, cada um no worktree da tarefa | login feito uma vez em cada CLI | **sua assinatura** (Claude Pro/Max e Google AI Pro / login Google), **sem chave de API** |
+| **`cli`** (padrão) | `claude -p` e `agy` (Antigravity CLI), os CLIs oficiais, cada um no worktree da tarefa | login feito uma vez em cada CLI | **sua assinatura** (Claude Pro/Max e Google AI Pro / login Google), **sem chave de API** |
 | `api` | AI SDK (`generateText` + ferramentas de `src/fs-tools.ts`) | `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | por token na API |
 
-No modo `cli` os modelos são aliases que acompanham o seu plano: `sonnet` (Claude), `pro` e `flash` (Gemini). Para trocar, use `CLAUDE_CLI_MODEL`, `GEMINI_CLI_PRO_MODEL` e `GEMINI_CLI_FLASH_MODEL`. No modo `api`, use `CLAUDE_SONNET_MODEL`, `GEMINI_PRO_MODEL` e `GEMINI_FLASH_MODEL`.
+> **Por que `agy` e não Gemini CLI:** desde 18/06/2026, o Gemini CLI não aceita mais login de contas pessoais (Free, AI Pro e Ultra); o erro é *"This client is no longer supported for Gemini Code Assist for individuals"*. O substituto oficial é o Antigravity CLI (`agy`).
+
+Modelos no modo `cli`: `CLAUDE_CLI_MODEL` (padrão `sonnet`, alias que acompanha o plano), `AGY_STRONG_MODEL` (padrão `gemini-3.8-flash-high`) e `AGY_FAST_MODEL` (padrão `gemini-3.8-flash-medium`). No modo `api`: `CLAUDE_SONNET_MODEL`, `GEMINI_PRO_MODEL` e `GEMINI_FLASH_MODEL`.
 
 ### Como as permissões valem no modo `cli` (`src/cli-runner.ts`)
 
-1. **Antes de rodar:** flags de permissão de cada CLI.
-   - Claude: `--allowedTools`/`--disallowedTools` por papel; Bash só `npm run lint/test`; sem WebFetch/WebSearch; `.env*` negado.
-   - Gemini: `--approval-mode plan` (somente leitura) ou `auto_edit`; shell só `npm run lint/test`.
-   - Os dois rodam **sem MCP** (`--strict-mcp-config` / `--allowed-mcp-server-names __nenhum__`), para evitar recursão.
-2. **Depois de rodar (determinístico):** o `git status` do worktree é comparado com a permissão do papel. Tudo que o papel não podia tocar é **desfeito**, e o gestor recebe a linha `POLÍTICA: ...`. Assim um testador não altera produção, mesmo que o modelo tente.
-3. O processo do CLI roda **sem** variáveis `*KEY*`/`*TOKEN*`. Isso garante o uso do login da assinatura, nunca uma chave de API exportada por engano.
-4. O prompt vai por **stdin**, porque diffs grandes estourariam o limite de linha de comando do Windows.
+1. **Antes de rodar:** regras de permissão de cada CLI.
+   - Claude: `--allowedTools`/`--disallowedTools` por papel; Bash só `npm run lint/test`; sem WebFetch/WebSearch; `.env*` negado; `--strict-mcp-config` (sem MCP, para evitar recursão).
+   - `agy`: regras por sessão em `--settings` (precedência deny > ask > allow). Ficam negados web, MCP, `.env` e escrita (papéis só de leitura). Comandos liberados por **regex**, porque no agy 1.5.6 a regra por prefixo não casa: só leitura (listar/ler/buscar/`git status|diff|log|show`), mais `npm run lint/test` para quem roda checks. Encadear com `;`/`&&`/`|` só vale entre comandos liberados. Também ficam negados `..`, caminho absoluto, `~` e `.agent-*`; num teste real, o Gemini tentou ler `..\..\.agent-logs` a partir do worktree.
+2. **Depois de rodar (determinístico):** o `git status` do worktree é comparado com a permissão do papel. Tudo que o papel não podia tocar é **desfeito**, e o gestor recebe a linha `POLÍTICA: ...`.
+3. O processo do CLI roda **sem** variáveis `*KEY*`/`*TOKEN*`, para garantir que use o login da assinatura.
+4. O prompt vai por **stdin**: texto puro para o `claude`, e NDJSON (`--input-format stream-json`, sem `-p`) para o `agy`. Com `-p "<texto>"`, o agy **ignora** o stdin, e o modelo nunca recebia a tarefa.
+5. **Particularidade do `agy` em modo não interativo:** uma ação negada **encerra a execução** com resposta vazia. O runner retoma a mesma conversa (`--conversation <id>`) avisando o que foi negado, até `AGENT_AGY_MAX_RESUMES` vezes (padrão 3), e o relatório ao gestor lista os comandos negados. A transcrição completa de cada execução fica em `.agent-logs/agy/`.
 
-> Termos de uso: aqui cada assinatura é usada só pelo **próprio CLI oficial**, rodando na sua máquina. Não extraia tokens OAuth do Claude ou do Gemini para usar em outros programas: os termos proíbem, e a conta pode ser bloqueada.
+> Termos de uso: aqui cada assinatura é usada só pelo **próprio CLI oficial**, rodando na sua máquina. Não extraia tokens OAuth do Claude ou do Google para usar em outros programas: os termos proíbem, e a conta pode ser bloqueada.
 
 ## Instalação
 
@@ -60,18 +64,26 @@ npm test            # build + permissões + laço do worker (modelo simulado) + 
 ### Modo `cli` (assinaturas, padrão)
 
 ```bash
-npm install -g @anthropic-ai/claude-code @google/gemini-cli
+npm install -g @anthropic-ai/claude-code
+irm https://antigravity.google/cli/install.ps1 | iex   # Antigravity CLI (Windows/PowerShell)
 claude    # 1ª vez: login com a conta Claude Pro e aprovação do servidor do .mcp.json
-gemini    # 1ª vez: "Login with Google" e "Trust folder"
+agy       # 1ª vez: login com a conta Google (AI Pro)
 ```
 
 > **Windows:** se o `~/.npmrc` tiver `os=linux`, o npm pula o binário nativo do Claude Code e `claude` dá *"not a valid application"*. Instale com `npm install -g @anthropic-ai/claude-code --os=win32 --cpu=x64`.
 
-O servidor já está registrado nos dois clientes:
+Registro do servidor:
 - **Claude Code:** `.mcp.json` na raiz (veja `.mcp.json.example`).
-- **Gemini CLI:** `.gemini/settings.json` na raiz. Ele também carrega o `CLAUDE.md` como contexto, então o Gemini recebe o manual do gestor.
+- **agy:** `.agents/mcp_config.json` na raiz (local, fora do git), com caminhos absolutos:
+  ```json
+  { "mcpServers": { "pomofoca-agents": { "command": "node",
+    "args": ["C:/caminho/Pomofoca/tools/agent-mcp/dist/server.js"],
+    "env": { "AGENT_PROVIDER_MODE": "cli", "AGENT_REPO_ROOT": "C:/caminho/Pomofoca" } } } }
+  ```
 
-Qualquer um dos dois pode ser o **gestor**: abra o `claude` (de preferência com `/model opus`) ou o `gemini` na raiz do repo e peça a tarefa.
+O gestor recomendado é o `claude` (de preferência com `/model opus`), aberto na raiz do repo.
+
+> Depois de `npm run build`, **reinicie o cliente MCP**, porque o processo do servidor que já está rodando continua com o código antigo.
 
 ### Modo `api`
 
@@ -98,7 +110,7 @@ Exporte `AGENT_PROVIDER_MODE=api`, `ANTHROPIC_API_KEY` e `GOOGLE_GENERATIVE_AI_A
 - **Banco de dados:** testes que usam o mesmo PostgreSQL/Redis em tarefas paralelas podem colidir. Use um banco de teste por tarefa (via env) ou rode essas tarefas em sequência.
 - Preços não estão embutidos (mudam). `custos` mostra tokens; multiplique pela tabela atual de cada provedor.
 - No modo `cli`, os limites são os **da sua assinatura**: o gestor e os workers Claude dividem a mesma cota do Claude Pro. Os tokens do `custos` servem para comparar papéis, não para calcular dinheiro.
-- No modo `cli`, `ROLE_LIMITS.maxSteps`/`maxOutputTokens` não se aplicam, porque cada CLI controla o próprio laço. O limite é `AGENT_WORKER_TIMEOUT_MS` (padrão 10 min), mais o orçamento por tarefa.
+- No modo `cli`, `ROLE_LIMITS.maxSteps`/`maxOutputTokens` não se aplicam, porque cada CLI controla o próprio laço. O limite é `AGENT_WORKER_TIMEOUT_MS` (padrão 10 min), mais o orçamento por tarefa: no modo `cli`, o padrão de `AGENT_MAX_TOKENS_PER_TASK` é 4M, porque os CLIs contam leitura de cache como entrada.
 - No modo `api`, o Sonnet usa `ANTHROPIC_API_KEY`, com cobrança separada da assinatura.
 
 ## Estrutura
@@ -106,7 +118,7 @@ Exporte `AGENT_PROVIDER_MODE=api`, `ANTHROPIC_API_KEY` e `GOOGLE_GENERATIVE_AI_A
 ```
 src/config.ts     mapa papel→modelo, limites, gate, raiz do repo
 src/models.ts     provedores via API (Anthropic, Google) — adicionar outro = 1 `case`
-src/cli-runner.ts provedores via CLI (claude -p / gemini -p): flags por papel, parse de tokens, política pós-execução
+src/cli-runner.ts provedores via CLI (claude -p / agy): regras por papel, parse de tokens, retomada após negação, política pós-execução
 src/roles.ts      prompts de sistema por papel (+ CONVENTIONS.md do projeto)
 src/fs-tools.ts   ferramentas dos workers com permissões por papel
 src/delegate.ts   executa o worker, aplica orçamento, faz checkpoint, devolve relatório curto

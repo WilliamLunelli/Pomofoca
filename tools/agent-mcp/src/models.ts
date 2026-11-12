@@ -21,7 +21,7 @@ export function resolveModel(spec: ModelSpec): LanguageModel {
       requireEnv('GOOGLE_GENERATIVE_AI_API_KEY');
       return google(spec.model);
     case 'claude-cli':
-    case 'gemini-cli':
+    case 'agy':
       // Provedores de CLI não passam pelo AI SDK: delegate.ts usa cli-runner.ts.
       throw new Error(`O provedor ${spec.provider} roda via CLI, não via AI SDK.`);
   }
