@@ -178,6 +178,27 @@
   border-bottom-color: var(--color-divider);
 }
 
+/* Landing: texto secundario do hero/cabecalho com contraste AA nos dois temas. */
+.landing-header .btn-ghost,
+.hero-cta .btn-ghost,
+.hero-lead {
+  color: var(--landing-muted);
+}
+.landing-header .btn-ghost:hover:not(:disabled),
+.hero-cta .btn-ghost:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+/* Landing: halo suave da cor de destaque atras da composicao do hero. */
+.hero-glow {
+  background: radial-gradient(
+    closest-side,
+    var(--landing-glow),
+    transparent
+  );
+  filter: blur(24px);
+}
+
 /* Landing: botoes do hero e do cabecalho com press mais sutil. */
 .landing-header .btn:active:not(:disabled),
 .hero-cta .btn:active:not(:disabled) {

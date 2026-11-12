@@ -10,7 +10,7 @@ const CELEBRATE_MS = 1_600;
 const DISPLAY_SECONDS = 25 * 60; // o relogio mostra um ciclo de 25:00, so acelerado
 const STATIC_REMAINING = 18 * 60 + 42;
 
-const SIZE = 220;
+const SIZE = 260;
 const STROKE = 10;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -64,19 +64,19 @@ export function DemoTimer({ className }: { className?: string }) {
 
   return (
     <div
-      className={`card flex items-center gap-5 p-6 ${className ?? ''}`}
+      className={`card flex flex-col items-center justify-center gap-4 p-6 md:flex-row md:gap-6 md:p-8 ${className ?? ''}`}
       style={{ boxShadow: 'var(--shadow-lg)' }}
       role="img"
       aria-label="Demonstração de um timer pomodoro em andamento"
     >
-      <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
-        <svg width={SIZE} height={SIZE} className="-rotate-90">
+      <div className="relative aspect-square w-[220px] max-w-full shrink-0 md:w-[260px]">
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-full w-full -rotate-90">
           <circle
             cx={SIZE / 2}
             cy={SIZE / 2}
             r={RADIUS}
             fill="none"
-            stroke="var(--f-track)"
+            stroke="var(--landing-track)"
             strokeWidth={STROKE}
           />
           <circle
@@ -101,7 +101,7 @@ export function DemoTimer({ className }: { className?: string }) {
           </span>
         </div>
       </div>
-      <Foki state={fokiState} size={72} className="hidden sm:block" />
+      <Foki state={fokiState} size={80} className="shrink-0" />
     </div>
   );
 }

@@ -45,7 +45,13 @@
   --font-body: 'Inter', system-ui, sans-serif;
 
   /* Tamanho de display (titulo do hero da landing). Vale para os dois temas. */
-  --text-display: clamp(2rem, 1.2rem + 2.6vw, 3.25rem);
+  --text-display: clamp(1.875rem, 1.1rem + 2.2vw, 2.75rem);
+
+  /* Landing: trilho do anel do timer demo, texto secundario com contraste AA e
+     halo atras da composicao do hero. Valor proprio em cada tema. */
+  --landing-track: var(--f-track);
+  --landing-muted: #55505c;
+  --landing-glow: color-mix(in srgb, var(--color-accent) 14%, transparent);
 
   --space-1: 2.8px;
   --space-2: 5.6px;
@@ -70,6 +76,10 @@
   --color-accent: #9184d9;
   --color-accent-2: #a7a1db;
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --landing-track: color-mix(in srgb, var(--color-text) 10%, transparent);
+  --landing-muted: color-mix(in srgb, var(--color-text) 74%, transparent);
+  --landing-glow: color-mix(in srgb, var(--color-accent) 18%, transparent);
 
   --shadow-sm: 0 0 0 1px #3f424d;
   --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);

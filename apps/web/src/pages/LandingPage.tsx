@@ -104,13 +104,13 @@ export function LandingPage() {
         <div className="mx-auto grid w-full max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <h1
-              className="hero-enter mb-5 max-w-xl leading-[1.08]"
-              style={{ fontSize: 'var(--text-display)' }}
+              className="hero-enter mb-5 max-w-xl leading-[1.1]"
+              style={{ fontSize: 'var(--text-display)', textWrap: 'balance' }}
             >
               A maioria dos apps de pomodoro esquece o que você estudou ontem.
             </h1>
             <p
-              className="hero-enter mb-8 max-w-md text-base text-muted"
+              className="hero-enter hero-lead mb-8 max-w-md text-base"
               style={{ '--hero-delay': '80ms' } as CSSProperties}
             >
               O Pomofoca registra cada sessão por matéria. Você vê para onde foi seu
@@ -131,12 +131,16 @@ export function LandingPage() {
             </div>
           </div>
           <div
-            className="hero-enter relative md:pb-20"
+            className="hero-enter relative md:pb-24 md:pr-8"
             style={{ '--hero-delay': '240ms' } as CSSProperties}
           >
-            <DemoTimer className="relative z-10 w-fit max-w-full" />
             <div
-              className="card mt-4 p-4 md:absolute md:bottom-0 md:right-0 md:z-20 md:mt-0 md:w-[360px]"
+              aria-hidden="true"
+              className="hero-glow pointer-events-none absolute -inset-x-6 -inset-y-10 md:-inset-x-12 md:-inset-y-16"
+            />
+            <DemoTimer className="relative z-10 w-full md:w-fit md:max-w-full" />
+            <div
+              className="card relative z-20 mt-4 w-full p-4 md:absolute md:-bottom-2 md:-right-2 md:mt-0 md:w-[440px] md:p-5"
               style={{ boxShadow: 'var(--shadow-lg)' }}
             >
               <DemoHeatmap weeks={30} />
