@@ -75,6 +75,15 @@ function formatMinutes(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+// Total do dia no cabecalho: "50min" / "1h 20min".
+function formatTodayTotal(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}min`;
+  return `${h}h ${m}min`;
+}
+
 function durationFor(
   mode: Mode,
   settings: ReturnType<typeof usePomodoroSettings>['settings'],
@@ -97,7 +106,6 @@ export function TimerPage() {
   const [running, setRunning] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
   const [todayBreakdown, setTodayBreakdown] = useState<ReportBreakdown | null>(null);
   const [streak, setStreak] = useState<ReportStreak | null>(null);
   const [celebrating, setCelebrating] = useState(false);
@@ -255,7 +263,6 @@ export function TimerPage() {
           finishedAt: new Date().toISOString(),
         });
         if (finishedMode === 'FOCUS') {
-          setTodayFocusSeconds((s) => s + elapsedSeconds);
           loadStreak();
           loadTodayBreakdown();
         }
@@ -431,8 +438,11 @@ export function TimerPage() {
           }}
           className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] transition-colors"
           style={{
-            borderColor: s.id === selectedSubjectId ? s.color : 'var(--color-divider)',
-            background: s.id === selectedSubjectId ? `${s.color}22` : 'transparent',
+            borderColor:
+              s.id === selectedSubjectId ? 'var(--color-accent)' : 'var(--color-divider)',
+            background:
+              s.id === selectedSubjectId ? 'var(--color-accent-tint)' : 'transparent',
+            color: s.id === selectedSubjectId ? 'var(--color-accent)' : undefined,
           }}
         >
           <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
@@ -441,7 +451,7 @@ export function TimerPage() {
       ))}
       {subjects.length === 0 && (
         <p className="text-xs text-muted">
-          Nenhuma matéria ainda — crie uma na aba Matérias para organizar seu estudo.
+          Nenhuma matéria ainda. Crie uma na aba Matérias para organizar seu estudo.
         </p>
       )}
     </div>
@@ -467,7 +477,7 @@ export function TimerPage() {
             <h6>{MODE_LABEL[mode]}</h6>
             <div className="text-sm text-muted">
               Ciclo {cycle} de {settings.cyclesBeforeLongBreak} · hoje{' '}
-              {formatClock(todayFocusSeconds).slice(0, 5)}
+              {formatTodayTotal(todayBreakdown?.totalMinutes ?? 0)}
             </div>
           </div>
           <div className="flex gap-1">

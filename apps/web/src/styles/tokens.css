@@ -109,6 +109,8 @@
   --foki-shadow: rgba(0, 0, 0, 0.45);
   --foki-sparkle: #ffe9a8;
 
+  /* Trilho neutro sutil (o valor claro do :root vira mancha branca no escuro). */
+  --f-track: color-mix(in srgb, var(--color-text) 12%, transparent);
   --landing-track: color-mix(in srgb, var(--color-text) 10%, transparent);
   --landing-muted: color-mix(in srgb, var(--color-text) 74%, transparent);
   --landing-glow: color-mix(in srgb, var(--color-accent) 18%, transparent);

@@ -72,7 +72,11 @@ export function AppShell() {
         {user?.plan === 'FREE' && (
           <NavLink
             to="/subscription"
-            className="flex items-center gap-2.5 rounded-sm border border-transparent px-3 py-2 text-sm text-muted hover:bg-tint"
+            className="flex items-center gap-2.5 rounded-sm border border-transparent px-3 py-2 text-sm font-medium transition-colors hover:!bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)]"
+            style={{
+              background: 'var(--color-accent-tint)',
+              color: 'var(--color-accent)',
+            }}
           >
             <FlagBanner size={16} />
             Assinar Premium

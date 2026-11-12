@@ -1,5 +1,5 @@
 import { Archive, ArrowCounterClockwise, Check } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { SubjectTasks, SubjectTasksToggle } from '@/components/SubjectTasks';
@@ -7,7 +7,46 @@ import { useAuth } from '@/context/AuthContext';
 import { useSubjects } from '@/hooks/useSubjects';
 import { api, ApiError } from '@/lib/api';
 import { getReadableTextColor, SUBJECT_COLOR_PRESETS } from '@/lib/color';
-import type { Subject } from '@pomofoca/shared';
+import type { ReportBreakdown, Subject } from '@pomofoca/shared';
+
+function formatHM(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function WeeklyProgress({
+  color,
+  studied,
+  goal,
+}: {
+  color: string;
+  studied: number;
+  goal: number;
+}) {
+  const pct = Math.min((studied / goal) * 100, 100);
+  const done = studied >= goal;
+  return (
+    <div className="mt-1">
+      <div className="mb-1 flex items-center gap-1 text-xs text-muted">
+        <span className="truncate">
+          {formatHM(studied)} de {formatHM(goal)} esta semana
+        </span>
+        {done && (
+          <Check size={12} weight="bold" className="flex-none" style={{ color: 'var(--f-ok)' }} />
+        )}
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-track">
+        <div
+          className="bar-grow h-full rounded-full"
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function SubjectsPage() {
   const { user } = useAuth();
@@ -19,6 +58,25 @@ export function SubjectsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTasksFor, setExpandedTasksFor] = useState<string | null>(null);
+
+  const [weekMinutes, setWeekMinutes] = useState<Record<string, number>>({});
+
+  // Uma unica chamada pra pagina toda (nao uma por card). Falha silenciosa: o
+  // progresso e um extra, os cards continuam mostrando so a meta.
+  const loadWeek = useCallback(async () => {
+    try {
+      const data = await api.get<ReportBreakdown>('/reports/breakdown?period=week');
+      const map: Record<string, number> = {};
+      for (const b of data.subjects) if (b.subjectId) map[b.subjectId] = b.minutes;
+      setWeekMinutes(map);
+    } catch {
+      // sem progresso
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWeek();
+  }, [loadWeek]);
 
   const active = subjects.filter((s) => !s.archived);
   const archived = subjects.filter((s) => s.archived);
@@ -151,7 +209,7 @@ export function SubjectsPage() {
         <div className="card mx-auto flex max-w-[480px] flex-col items-center gap-3 p-10 text-center">
           <p className="text-sm text-text">Nenhuma matéria ainda.</p>
           <p className="max-w-[38ch] text-xs text-muted">
-            Crie uma matéria pra começar a separar seu tempo de estudo por assunto — é o
+            Crie uma matéria pra começar a separar seu tempo de estudo por assunto. É o
             que alimenta o relatório.
           </p>
           <button className="btn btn-primary mt-2" onClick={() => setFormOpen(true)}>
@@ -188,11 +246,13 @@ export function SubjectsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-heading text-[15px]">{s.name}</div>
-                  {s.weeklyGoalMinutes && (
-                    <div className="text-xs text-muted">
-                      meta: {Math.round(s.weeklyGoalMinutes / 60)}h/semana
-                    </div>
-                  )}
+                  {s.weeklyGoalMinutes ? (
+                    <WeeklyProgress
+                      color={s.color}
+                      studied={weekMinutes[s.id] ?? 0}
+                      goal={s.weeklyGoalMinutes}
+                    />
+                  ) : null}
                 </div>
                 <div className="flex flex-none items-center gap-1">
                   <SubjectTasksToggle

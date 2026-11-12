@@ -1,5 +1,5 @@
 import { Books, CalendarBlank, CalendarX, Clock, Flame, Lock, Warning } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bar,
@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 
 import { CountUp } from '@/components/CountUp';
+import { DemoHeatmap } from '@/components/landing/DemoHeatmap';
 import { Foki } from '@/components/Foki';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuth } from '@/context/AuthContext';
@@ -53,6 +54,34 @@ const HEATMAP_LEVEL_COLOR = [
   'var(--color-accent-600)',
   'var(--color-accent-800)',
 ];
+
+// Barra de hoje (ultimo ponto da serie) em accent cheio; as demais mais suaves.
+const BAR_TODAY = 'var(--color-accent)';
+const BAR_SOFT = 'color-mix(in srgb, var(--color-accent) 55%, transparent)';
+
+// Selo sobre uma previa desfocada e ficticia de um recurso Premium bloqueado.
+function LockedPreview({ children, text }: { children: ReactNode; text: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-md">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none"
+        style={{ filter: 'blur(5px)', opacity: 0.45 }}
+      >
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="card flex max-w-full flex-wrap items-center justify-center gap-3 px-4 py-3 text-center">
+          <Lock size={16} className="flex-none text-accent" />
+          <span className="text-[13px]">{text}</span>
+          <Link to="/subscription" className="btn btn-primary">
+            Desbloquear com Premium
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatMinutes(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -184,13 +213,9 @@ export function ReportsPage() {
         )}
       </div>
       {heatmapLocked ? (
-        <p className="text-sm text-muted">
-          O heatmap anual é exclusivo do plano Premium.{' '}
-          <Link to="/subscription" className="text-accent">
-            Assine para desbloquear
-          </Link>
-          .
-        </p>
+        <LockedPreview text="Heatmap anual é exclusivo do Premium">
+          <DemoHeatmap weeks={26} />
+        </LockedPreview>
       ) : heatmap ? (
         <div className="overflow-x-auto pb-1">
           <div className="flex min-w-max gap-[3px]">
@@ -248,19 +273,25 @@ export function ReportsPage() {
         )}
       </div>
       {insightsLocked ? (
-        <p className="text-sm text-muted">
-          Insights adaptativos são exclusivos do plano Premium.{' '}
-          <Link to="/subscription" className="text-accent">
-            Assine para desbloquear
-          </Link>
-          .
-        </p>
+        <LockedPreview text="Insights adaptativos são exclusivos do Premium">
+          <div className="flex flex-col gap-4">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex gap-3">
+                <div className="mt-0.5 h-[18px] w-[18px] flex-none rounded-full bg-track" />
+                <div className="flex-1">
+                  <div className="mb-2 h-3 w-1/3 rounded-full bg-track" />
+                  <div className="h-3 w-4/5 rounded-full bg-track" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </LockedPreview>
       ) : !insights ? (
         <p className="text-sm text-muted">Carregando…</p>
       ) : !insights.hasEnoughData ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted">
-            Continue estudando — seus insights aparecem depois que houver dado suficiente
+            Continue estudando: seus insights aparecem depois que houver dado suficiente
             pra serem confiáveis.
           </p>
           <p className="text-xs text-muted">
@@ -274,7 +305,7 @@ export function ReportsPage() {
         </div>
       ) : insights.insights.length === 0 ? (
         <p className="text-sm text-muted">
-          Nada de específico pra destacar ainda — seu padrão de estudo está equilibrado,
+          Nada de específico pra destacar ainda. Seu padrão de estudo está equilibrado,
           ou ainda não há dado suficiente pra um insight específico.
         </p>
       ) : (
@@ -454,12 +485,19 @@ export function ReportsPage() {
                   <Tooltip formatter={(v: number) => formatMinutes(v)} />
                   <Bar
                     dataKey="minutes"
-                    fill="var(--color-accent)"
+                    fill={BAR_SOFT}
                     radius={[3, 3, 0, 0]}
                     // sem animacao propria: a de entrada do Recharts congela posicoes
                     // medidas durante a entrada da pagina e desalinha barras e rotulos
                     isAnimationActive={false}
-                  />
+                  >
+                    {trendData.map((p, i) => (
+                      <Cell
+                        key={p.label}
+                        fill={i === trendData.length - 1 ? BAR_TODAY : BAR_SOFT}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -489,10 +527,17 @@ export function ReportsPage() {
                   <Tooltip formatter={(v: number) => formatMinutes(v)} />
                   <Bar
                     dataKey="minutes"
-                    fill="var(--color-accent)"
+                    fill={BAR_SOFT}
                     radius={[3, 3, 0, 0]}
                     isAnimationActive={false}
-                  />
+                  >
+                    {trendData.map((p, i) => (
+                      <Cell
+                        key={p.label}
+                        fill={i === trendData.length - 1 ? BAR_TODAY : BAR_SOFT}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -70,8 +70,8 @@ export function SubscriptionPage() {
           Seu histórico completo custa menos que um café.
         </h3>
         <p className="mb-8 max-w-[50ch] text-sm text-muted">
-          O timer é grátis para sempre. O Premium guarda cada sessão desde o primeiro dia
-          — é o que faz o relatório valer.
+          O timer é grátis para sempre. O Premium guarda cada sessão desde o primeiro dia.
+          É o que faz o relatório valer.
         </p>
 
         {(checkoutError || cancelError) && (

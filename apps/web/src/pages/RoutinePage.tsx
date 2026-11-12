@@ -36,6 +36,12 @@ function blockHeight(startTime: string, endTime: string): number {
   return ((timeToMinutes(endTime) - timeToMinutes(startTime)) / 60) * ROW_HEIGHT;
 }
 
+// "08:00" -> "8h", "08:30" -> "8h30"
+function formatShortTime(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+}
+
 interface BlockFormState {
   id: string | null;
   dayOfWeek: number;
@@ -154,7 +160,7 @@ export function RoutinePage() {
       <div className="mb-8">
         <h3 className="text-xl">Rotina semanal</h3>
         <p className="text-sm text-muted">
-          Um horário fixo recorrente — toque num espaço vazio pra criar, num bloco
+          Um horário fixo recorrente. Toque num espaço vazio pra criar, num bloco
           existente pra editar.
         </p>
       </div>
@@ -175,7 +181,7 @@ export function RoutinePage() {
                     style={{ background: fulfilled ? 'var(--f-ok)' : 'var(--f-track)' }}
                   />
                   <span className="tabular-nums text-muted">
-                    {block.startTime}–{block.endTime}
+                    {formatShortTime(block.startTime)} às {formatShortTime(block.endTime)}
                   </span>
                   <span className="flex items-center gap-1.5">
                     {subject && (
@@ -270,9 +276,21 @@ export function RoutinePage() {
                           opacity: block.active ? 1 : 0.4,
                         }}
                       >
-                        <div className="truncate font-heading" style={{ color }}>
+                        <div
+                          className="truncate font-medium"
+                          style={{ color: 'var(--color-text)' }}
+                        >
                           {block.label || subject?.name || 'Estudo'}
                         </div>
+                        {blockHeight(block.startTime, block.endTime) >= 34 && (
+                          <div
+                            className="truncate tabular-nums"
+                            style={{ color: 'var(--f-muted)' }}
+                          >
+                            {formatShortTime(block.startTime)} às{' '}
+                            {formatShortTime(block.endTime)}
+                          </div>
+                        )}
                       </button>
                     );
                   })}

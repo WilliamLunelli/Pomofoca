@@ -350,8 +350,13 @@ export function SettingsPage() {
             </button>
           </div>
 
-          <div className="mb-4">
-            <label className="mb-2 block text-xs text-muted">Cor de destaque</label>
+          <div className="mb-6">
+            <div className="mb-3 text-sm">
+              Cor de destaque
+              <div className="text-[11px] text-muted">
+                Usada em botões, seleções e gráficos
+              </div>
+            </div>
             <div className="flex gap-2">
               {ACCENT_PRESETS.map((preset) => {
                 const selected = prefs.accentColor === preset.hex;
@@ -384,36 +389,48 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="mb-4 flex gap-4">
-            {(['comfortable', 'compact'] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => prefs.setDensity(d)}
-                className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
-                style={{
-                  borderColor:
-                    prefs.density === d ? 'var(--color-accent)' : 'var(--color-divider)',
-                }}
-              >
-                {d === 'comfortable' ? 'Confortável' : 'Compacto'}
-              </button>
-            ))}
+          <div className="mb-6">
+            <div className="mb-3 text-sm">
+              Densidade
+              <div className="text-[11px] text-muted">Espaçamento entre elementos</div>
+            </div>
+            <div className="flex gap-4">
+              {(['comfortable', 'compact'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => prefs.setDensity(d)}
+                  className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
+                  style={{
+                    borderColor:
+                      prefs.density === d ? 'var(--color-accent)' : 'var(--color-divider)',
+                  }}
+                >
+                  {d === 'comfortable' ? 'Confortável' : 'Compacto'}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex gap-4">
-            {(['default', 'large', 'xlarge'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => prefs.setFontSize(f)}
-                className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
-                style={{
-                  borderColor:
-                    prefs.fontSize === f ? 'var(--color-accent)' : 'var(--color-divider)',
-                }}
-              >
-                {f === 'default' ? 'Padrão' : f === 'large' ? 'Grande' : 'Extra grande'}
-              </button>
-            ))}
+          <div>
+            <div className="mb-3 text-sm">
+              Tamanho do texto
+              <div className="text-[11px] text-muted">Aumenta a leitura em todo o app</div>
+            </div>
+            <div className="flex gap-4">
+              {(['default', 'large', 'xlarge'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => prefs.setFontSize(f)}
+                  className="seg-btn flex-1 rounded-sm border px-3 py-2 text-xs"
+                  style={{
+                    borderColor:
+                      prefs.fontSize === f ? 'var(--color-accent)' : 'var(--color-divider)',
+                  }}
+                >
+                  {f === 'default' ? 'Padrão' : f === 'large' ? 'Grande' : 'Extra grande'}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 

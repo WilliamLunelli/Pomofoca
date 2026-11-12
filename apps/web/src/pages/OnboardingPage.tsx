@@ -46,7 +46,7 @@ export function OnboardingPage() {
 
         <h1 className="mb-2 text-center text-2xl">Escolha como quer começar</h1>
         <p className="mb-8 text-center text-sm text-muted">
-          Você pode mudar de plano quando quiser — o timer é grátis pra sempre.
+          Você pode mudar de plano quando quiser. O timer é grátis pra sempre.
         </p>
 
         {checkoutError && (
