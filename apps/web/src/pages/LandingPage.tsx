@@ -160,7 +160,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <Reveal>
             <h2 className="mb-3 max-w-lg text-2xl">Para onde foi seu tempo</h2>
-            <p className="mb-10 max-w-xl text-sm text-muted">
+            <p className="landing-muted mb-10 max-w-xl text-sm">
               Cada sessão vira dado: ano inteiro, matérias, padrões e sequência no mesmo
               lugar.
             </p>
@@ -168,8 +168,9 @@ export function LandingPage() {
           <div className="grid gap-4 lg:grid-cols-3">
             <Reveal className="lg:col-span-2">
               <div className="card flex h-full flex-col gap-4 p-6">
-                <DemoHeatmap />
-                <p className="mt-auto text-sm text-muted">
+                <DemoHeatmap weeks={26} className="md:hidden" />
+                <DemoHeatmap className="hidden md:block" />
+                <p className="landing-muted mt-auto text-sm">
                   Um ano de estudo num olhar só.
                 </p>
               </div>
@@ -187,13 +188,13 @@ export function LandingPage() {
               >
                 <div className="flex items-center gap-2">
                   <Lightbulb size={20} weight="fill" className="text-accent" />
-                  <span className="tag tag-accent">Premium</span>
+                  <span className="tag tag-accent landing-tag">Premium</span>
                 </div>
-                <p className="max-w-xl text-[15px] leading-relaxed">
+                <p className="text-lg leading-relaxed">
                   Você planejou Cálculo às terças, 14:00-16:00, mas estudou por volta de
                   20h-22h em 3 das últimas 4 semanas. Que tal ajustar o bloco?
                 </p>
-                <p className="mt-auto text-xs text-muted">Baseado em 41 sessões</p>
+                <p className="landing-muted mt-auto text-xs">Baseado em 41 sessões</p>
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -202,12 +203,12 @@ export function LandingPage() {
                 style={{ background: 'var(--landing-wash)' }}
               >
                 <div>
-                  <div className="mb-1 flex items-center gap-1.5 text-sm text-muted">
+                  <div className="landing-muted mb-1 flex items-center gap-1.5 text-sm">
                     <Flame size={18} weight="fill" className="text-accent" />
                     Sequência
                   </div>
                   <div className="font-heading text-5xl leading-none tabular-nums">23</div>
-                  <div className="mt-1 text-sm text-muted">dias seguidos</div>
+                  <div className="landing-muted mt-1 text-sm">dias seguidos</div>
                 </div>
                 <Foki state="celebrating" size={72} />
               </div>
@@ -240,7 +241,7 @@ export function LandingPage() {
                     </div>
                     <div className="md:max-w-[240px]">
                       <h3 className="mb-1 text-base font-heading">{s.title}</h3>
-                      <p className="text-[13px] text-muted">{s.body}</p>
+                      <p className="landing-muted text-[13px]">{s.body}</p>
                     </div>
                   </div>
                 </Reveal>
@@ -259,9 +260,9 @@ export function LandingPage() {
                 <WifiSlash size={22} className="mt-0.5 shrink-0 text-accent" />
                 <div>
                   <h3 className="mb-1 text-lg font-heading">Funciona offline</h3>
-                  <p className="text-sm text-muted">
+                  <p className="landing-muted text-sm">
                     Instale como app no celular ou no computador. Sem internet, o timer
-                    continua e suas sessões ficam salvas.
+                    continua rodando normalmente.
                   </p>
                 </div>
               </div>
@@ -274,7 +275,7 @@ export function LandingPage() {
                     Rotina da semana
                     <span className="tag tag-outline">No plano grátis</span>
                   </h3>
-                  <p className="text-sm text-muted">
+                  <p className="landing-muted text-sm">
                     Monte uma grade semanal com blocos por matéria e compare o plano com o
                     que você de fato estudou.
                   </p>
@@ -296,7 +297,7 @@ export function LandingPage() {
             <h2 className="mb-2 text-center text-2xl">
               Grátis para sempre. Premium quando o histórico importar.
             </h2>
-            <p className="mb-10 text-center text-sm text-muted">
+            <p className="landing-muted mb-10 text-center text-sm">
               O plano Premium libera o histórico completo por R${formatBRL(YEARLY_PRICE)}
               /ano, equivalente a R${formatBRL(YEARLY_MONTHLY_EQUIVALENT)}/mês.
             </p>

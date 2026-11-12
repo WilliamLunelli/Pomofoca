@@ -159,8 +159,18 @@
   opacity: 1;
   transform: translateY(0);
 }
+/* Landing: texto secundario com contraste AA nos dois temas (token em tokens.css). */
+.landing-muted {
+  color: var(--landing-muted);
+}
+/* Landing: etiqueta sobre fundo tint, texto com contraste AA no tema claro. */
+.landing-tag {
+  color: var(--color-text);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
 @media (prefers-reduced-motion: reduce) {
   .reveal {
+    opacity: 1;
     transform: none;
     transition: opacity 200ms ease;
   }
