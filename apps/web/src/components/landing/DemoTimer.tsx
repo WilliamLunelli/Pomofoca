@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Foki } from '@/components/Foki';
 
@@ -25,26 +25,46 @@ function formatClock(totalSeconds: number): string {
 
 export function DemoTimer({ className }: { className?: string }) {
   const reduced = useReducedMotion();
-  const [progress, setProgress] = useState(0);
   const [celebrating, setCelebrating] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<SVGCircleElement>(null);
+  const clockRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (reduced) return;
+    const root = rootRef.current;
+    if (!root) return;
+
     let raf = 0;
     let start = performance.now();
     let celebrateUntil = 0;
+    let inView = true;
+    let lastShown = -1;
+    // tempo ja decorrido do ciclo atual, preservado enquanto o loop esta pausado
+    let elapsedBeforePause = 0;
+    let running = false;
+
+    const paint = (p: number) => {
+      ringRef.current?.setAttribute('stroke-dashoffset', String(CIRCUMFERENCE * (1 - p)));
+      const remaining = Math.ceil(DISPLAY_SECONDS * (1 - p));
+      if (remaining !== lastShown && clockRef.current) {
+        lastShown = remaining;
+        clockRef.current.textContent = formatClock(remaining);
+      }
+    };
 
     const tick = (now: number) => {
       if (celebrateUntil) {
         if (now >= celebrateUntil) {
           celebrateUntil = 0;
           start = now;
+          elapsedBeforePause = 0;
+          paint(0);
           setCelebrating(false);
-          setProgress(0);
         }
       } else {
         const p = Math.min(1, (now - start) / CYCLE_MS);
-        setProgress(p);
+        paint(p);
         if (p >= 1) {
           celebrateUntil = now + CELEBRATE_MS;
           setCelebrating(true);
@@ -52,25 +72,62 @@ export function DemoTimer({ className }: { className?: string }) {
       }
       raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+
+    const startLoop = () => {
+      if (running) return;
+      running = true;
+      // retoma de onde parou: reancora o inicio descontando o tempo ja decorrido
+      const now = performance.now();
+      start = now - elapsedBeforePause;
+      if (celebrateUntil) celebrateUntil = now + CELEBRATE_MS;
+      raf = requestAnimationFrame(tick);
+    };
+    const stopLoop = () => {
+      if (!running) return;
+      running = false;
+      cancelAnimationFrame(raf);
+      elapsedBeforePause = celebrateUntil ? 0 : performance.now() - start;
+    };
+    const sync = () => {
+      if (inView && !document.hidden) startLoop();
+      else stopLoop();
+    };
+
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      sync();
+    });
+    observer.observe(root);
+    document.addEventListener('visibilitychange', sync);
+    sync();
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', sync);
+      cancelAnimationFrame(raf);
+    };
   }, [reduced]);
 
-  const shownProgress = reduced ? 1 - STATIC_REMAINING / DISPLAY_SECONDS : progress;
-  const remaining = reduced
-    ? STATIC_REMAINING
-    : Math.ceil(DISPLAY_SECONDS * (1 - shownProgress));
+  const staticProgress = 1 - STATIC_REMAINING / DISPLAY_SECONDS;
   const fokiState = reduced ? 'idle' : celebrating ? 'celebrating' : 'focused';
 
   return (
     <div
+      ref={rootRef}
       className={`card flex flex-col items-center justify-center gap-4 p-6 md:flex-row md:gap-6 md:p-8 ${className ?? ''}`}
       style={{ boxShadow: 'var(--shadow-lg)' }}
       role="img"
       aria-label="Demonstração de um timer pomodoro em andamento"
     >
-      <div className="relative aspect-square w-[220px] max-w-full shrink-0 md:w-[300px]">
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-full w-full -rotate-90">
+      <div
+        aria-hidden="true"
+        className="relative aspect-square w-[220px] max-w-full shrink-0 md:w-[300px]"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          className="h-full w-full -rotate-90"
+        >
           <circle
             cx={SIZE / 2}
             cy={SIZE / 2}
@@ -80,6 +137,7 @@ export function DemoTimer({ className }: { className?: string }) {
             strokeWidth={STROKE}
           />
           <circle
+            ref={ringRef}
             cx={SIZE / 2}
             cy={SIZE / 2}
             r={RADIUS}
@@ -88,12 +146,12 @@ export function DemoTimer({ className }: { className?: string }) {
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
-            strokeDashoffset={CIRCUMFERENCE * (1 - shownProgress)}
+            strokeDashoffset={CIRCUMFERENCE * (1 - (reduced ? staticProgress : 0))}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <span className="font-heading text-5xl tabular-nums leading-none">
-            {formatClock(remaining)}
+          <span ref={clockRef} className="font-heading text-5xl tabular-nums leading-none">
+            {formatClock(reduced ? STATIC_REMAINING : DISPLAY_SECONDS)}
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted">
             <span className="h-2 w-2 rounded-full" style={{ background: SUBJECT.color }} />
@@ -101,7 +159,9 @@ export function DemoTimer({ className }: { className?: string }) {
           </span>
         </div>
       </div>
-      <Foki state={fokiState} size={96} className="shrink-0" />
+      <div aria-hidden="true" className="shrink-0">
+        <Foki state={fokiState} size={96} />
+      </div>
     </div>
   );
 }

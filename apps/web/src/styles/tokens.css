@@ -55,6 +55,8 @@
   /* Landing: fundo de celula em destaque e trilho dos passos. */
   --landing-wash: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
   --landing-rail: color-mix(in srgb, var(--color-text) 18%, transparent);
+  /* Landing: texto escuro sobre blocos pastel da rotina (igual nos dois temas). */
+  --landing-on-block: #1f1b24;
 
   --space-1: 2.8px;
   --space-2: 5.6px;

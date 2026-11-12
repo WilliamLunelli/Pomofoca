@@ -16,6 +16,7 @@ import { DemoSubjects } from '@/components/landing/DemoSubjects';
 import { DemoTimer } from '@/components/landing/DemoTimer';
 import { DemoWeek } from '@/components/landing/DemoWeek';
 import { LandingHeader } from '@/components/landing/LandingHeader';
+import { useReducedMotion } from '@/components/landing/useReducedMotion';
 import { PlanCards, type PlanCardAction } from '@/components/PlanCards';
 import { useAuth } from '@/context/AuthContext';
 import { YEARLY_MONTHLY_EQUIVALENT, YEARLY_PRICE, formatBRL } from '@/lib/plans';
@@ -86,6 +87,8 @@ function Reveal({
 
 export function LandingPage() {
   const { user } = useAuth();
+  const reduced = useReducedMotion();
+  const fokiCelebrate = reduced ? 'idle' : 'celebrating';
   const primaryCtaTo = user ? '/timer' : '/register';
   const primaryCtaLabel = user ? 'Abrir o timer' : 'Criar conta grátis';
 
@@ -210,7 +213,7 @@ export function LandingPage() {
                   <div className="font-heading text-5xl leading-none tabular-nums">23</div>
                   <div className="landing-muted mt-1 text-sm">dias seguidos</div>
                 </div>
-                <Foki state="celebrating" size={72} />
+                <Foki state={fokiCelebrate} size={72} />
               </div>
             </Reveal>
           </div>
@@ -223,12 +226,13 @@ export function LandingPage() {
           <Reveal>
             <h2 className="mb-14 text-center text-2xl">Como funciona</h2>
           </Reveal>
-          <ol className="relative m-0 grid list-none gap-10 p-0 md:grid-cols-3 md:gap-8">
+          <div className="relative">
             <div
               aria-hidden="true"
               className="absolute bottom-6 left-6 top-6 w-px md:bottom-auto md:left-[16.67%] md:right-[16.67%] md:top-6 md:h-px md:w-auto"
               style={{ background: 'var(--landing-rail)' }}
             />
+          <ol className="relative m-0 grid list-none gap-10 p-0 md:grid-cols-3 md:gap-8">
             {STEPS.map((s, i) => (
               <li key={s.title} className="relative">
                 <Reveal delay={i * 80}>
@@ -248,6 +252,7 @@ export function LandingPage() {
               </li>
             ))}
           </ol>
+          </div>
         </div>
       </section>
 
@@ -255,6 +260,7 @@ export function LandingPage() {
       <section className="px-6 py-20 md:px-12">
         <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
           <div className="flex flex-col gap-10">
+            <h2 className="sr-only">Mais diferenciais</h2>
             <Reveal>
               <div className="flex gap-4">
                 <WifiSlash size={22} className="mt-0.5 shrink-0 text-accent" />
@@ -315,7 +321,7 @@ export function LandingPage() {
             style={{ background: 'var(--landing-wash)' }}
           >
             <div className="flex flex-col items-center gap-5 md:flex-row md:gap-8">
-              <Foki state="celebrating" size={88} />
+              <Foki state={fokiCelebrate} size={88} />
               <h2 className="text-2xl">Seu próximo ciclo começa agora.</h2>
             </div>
             <Link to={primaryCtaTo} className="btn btn-primary min-w-[180px] text-[15px]">

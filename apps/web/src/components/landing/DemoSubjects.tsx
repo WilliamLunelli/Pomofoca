@@ -9,7 +9,10 @@ export function DemoSubjects({ className }: { className?: string }) {
 
   return (
     <div className={className}>
-      <div className="mb-4 flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full">
+      <div
+        aria-hidden="true"
+        className="mb-4 flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full"
+      >
         {DEMO_SUBJECTS.map((s) => (
           <div
             key={s.name}
@@ -21,6 +24,7 @@ export function DemoSubjects({ className }: { className?: string }) {
         {DEMO_SUBJECTS.map((s) => (
           <li key={s.name} className="flex items-center gap-2 text-[13px]">
             <span
+              aria-hidden="true"
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ background: s.color }}
             />

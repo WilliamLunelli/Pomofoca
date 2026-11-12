@@ -70,7 +70,7 @@ export function DemoWeek({ className }: { className?: string }) {
                   top: `${((b.start - FIRST_HOUR) / SPAN) * 100}%`,
                   height: `${((b.end - b.start) / SPAN) * 100}%`,
                   background: b.color,
-                  color: '#1f1b24',
+                  color: 'var(--landing-on-block)',
                 }}
               >
                 {b.label}

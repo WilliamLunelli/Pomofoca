@@ -172,8 +172,15 @@
   .reveal {
     opacity: 1;
     transform: none;
-    transition: opacity 200ms ease;
+    transition: none;
   }
+}
+
+/* Landing: foco visivel em botoes e links (teclado). */
+.btn:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* Landing: cabecalho fixo translucido; borda aparece so depois de rolar. */

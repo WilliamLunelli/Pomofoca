@@ -31,7 +31,7 @@ export function DemoHeatmap({ weeks, className }: DemoHeatmapProps) {
       <div className="mb-1.5 grid gap-[3px]" style={{ gridTemplateColumns: cols }}>
         {labels.map((label, i) => (
           <span
-            key={i}
+            key={`w${from + i}`}
             className="overflow-visible whitespace-nowrap text-[10px] leading-none text-muted"
           >
             {label}
@@ -40,10 +40,10 @@ export function DemoHeatmap({ weeks, className }: DemoHeatmapProps) {
       </div>
       <div className="grid gap-[3px]" style={{ gridTemplateColumns: cols }}>
         {levels.map((week, w) => (
-          <div key={w} className="grid gap-[3px]">
+          <div key={`w${from + w}`} className="grid gap-[3px]">
             {week.map((level, d) => (
               <div
-                key={d}
+                key={`w${from + w}-d${d}`}
                 className="aspect-square rounded-[2px]"
                 style={{ background: LEVEL_COLOR[level] }}
               />
